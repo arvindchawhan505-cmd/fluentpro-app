@@ -8,16 +8,16 @@ import {
 import Logo from "@/components/Logo";
 import StreakFlame from "@/components/StreakFlame";
 
-const nav = [
-  { to: "/dashboard", label: "Dashboard", icon: GraduationCap, testId: "nav-dashboard" },
+const NAV_BASE = [
+  { to: "/dashboard", label: "Today", icon: GraduationCap, testId: "nav-dashboard" },
   { to: "/lessons", label: "Lessons", icon: Notebook, testId: "nav-lessons" },
-  { to: "/conversation", label: "Conversation", icon: ChatsCircle, testId: "nav-conversation" },
-  { to: "/vocabulary", label: "Vocabulary", icon: BookBookmark, testId: "nav-vocabulary" },
+  { to: "/conversation", label: "Speak with AI", icon: ChatsCircle, testId: "nav-conversation" },
+  { to: "/vocabulary", label: "Learn Words", icon: BookBookmark, testId: "nav-vocabulary" },
   { to: "/pronunciation", label: "Pronunciation", icon: Microphone, testId: "nav-pronunciation" },
-  { to: "/writing", label: "Writing", icon: PencilSimpleLine, testId: "nav-writing" },
-  { to: "/grammar", label: "Grammar", icon: Notebook, testId: "nav-grammar" },
-  { to: "/premium", label: "Premium", icon: Crown, testId: "nav-premium" },
+  { to: "/writing", label: "Improve Writing", icon: PencilSimpleLine, testId: "nav-writing" },
+  { to: "/grammar", label: "Fix My English", icon: Notebook, testId: "nav-grammar" },
 ];
+const NAV_PREMIUM = { to: "/premium", label: "Premium", icon: Crown, testId: "nav-premium" };
 
 export default function AppShell({ children }) {
   const { user, logout } = useAuth();

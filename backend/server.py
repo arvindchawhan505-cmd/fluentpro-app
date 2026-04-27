@@ -48,6 +48,8 @@ class User(BaseModel):
     is_premium: bool = False
     premium_until: Optional[str] = None
     goal: Optional[str] = None
+    has_completed_day1: bool = False
+    actions_completed: int = 0
 
 
 GOALS = {
@@ -201,7 +203,7 @@ async def update_streak_and_xp(user_id: str, xp_gained: int = 10):
     await db.users.update_one(
         {"user_id": user_id},
         {"$set": {"last_active_date": today, "streak": streak},
-         "$inc": {"xp": xp_gained}}
+         "$inc": {"xp": xp_gained, "actions_completed": 1}}
     )
 
 
@@ -260,6 +262,8 @@ async def process_session(request: Request, response: Response):
             "is_premium": False,
             "premium_until": None,
             "goal": None,
+            "has_completed_day1": False,
+            "actions_completed": 0,
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
 
@@ -1139,6 +1143,23 @@ async def onboarding_quest_claim(request: Request,
     )
     await update_streak_and_xp(user.user_id, QUEST_REWARD_XP)
     return {"already_claimed": False, "xp_awarded": QUEST_REWARD_XP, "badge": state["badge"]}
+
+
+@api_router.post("/onboarding/day1/complete")
+async def onboarding_day1_complete(request: Request,
+                                   session_token: Optional[str] = Cookie(None),
+                                   authorization: Optional[str] = Header(None)):
+    """Marks the streamlined Day-1 practice (chat → vocab → grammar) as complete.
+    Idempotent: returns already_completed=True if already done."""
+    user = await get_current_user(request, session_token, authorization)
+    if user.has_completed_day1:
+        return {"already_completed": True, "xp_awarded": 0}
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"has_completed_day1": True}},
+    )
+    await update_streak_and_xp(user.user_id, 10)
+    return {"already_completed": False, "xp_awarded": 10}
 
 
 # ---------- Referral system ----------

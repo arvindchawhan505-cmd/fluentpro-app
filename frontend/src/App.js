@@ -20,6 +20,7 @@ import Lessons from "@/pages/Lessons";
 import LessonDetail from "@/pages/LessonDetail";
 import Profile from "@/pages/Profile";
 import Premium from "@/pages/Premium";
+import StartPractice from "@/pages/StartPractice";
 
 function Protected({ children }) {
   return (
@@ -52,6 +53,7 @@ function AppRouter() {
       <Route path="/writing" element={<Protected><Writing /></Protected>} />
       <Route path="/profile" element={<Protected><Profile /></Protected>} />
       <Route path="/premium" element={<Protected><Premium /></Protected>} />
+      <Route path="/start-practice" element={<ProtectedRoute><StartPractice /></ProtectedRoute>} />
     </Routes>
   );
 }

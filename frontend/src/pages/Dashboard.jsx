@@ -27,14 +27,70 @@ export default function Dashboard() {
   const [progress, setProgress] = useState(null);
   const [lessons, setLessons] = useState([]);
   const [shareOpen, setShareOpen] = useState(false);
+  const isNewUser = user && !user.has_completed_day1;
 
   useEffect(() => {
+    if (isNewUser) return;
     (async () => {
       const [p, l] = await Promise.all([api.get("/progress"), api.get("/lessons")]);
       setProgress(p.data);
       setLessons(l.data.lessons);
     })();
-  }, []);
+  }, [isNewUser]);
+
+  if (isNewUser) {
+    return (
+      <div className="space-y-8 pb-24 md:pb-8" data-testid="dashboard-page">
+        <header data-testid="newuser-greeting">
+          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 md:text-4xl" style={{ fontFamily: "Nunito, sans-serif" }}>
+            Hi, {user?.name?.split(" ")[0]} 👋
+          </h1>
+          <p className="mt-2 max-w-xl text-lg font-medium text-slate-600">
+            Let's improve your English today
+          </p>
+        </header>
+
+        <motion.section
+          initial={{ opacity: 0, y: 12, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+          data-testid="start-practice-card"
+          className="relative overflow-hidden rounded-3xl border-2 border-indigo-200 bg-gradient-to-br from-blue-500 via-indigo-500 to-violet-500 p-8 text-white shadow-2xl shadow-indigo-500/20 md:p-12"
+        >
+          <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/15 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-20 -left-10 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
+          <div className="relative flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+            <div className="max-w-xl">
+              <div className="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-white">
+                <span className="text-xs font-bold uppercase tracking-widest">Day 1</span>
+              </div>
+              <h2 className="mt-3 text-3xl font-extrabold leading-tight md:text-5xl" style={{ fontFamily: "Nunito, sans-serif" }}>
+                Start Today's Practice 🚀
+              </h2>
+              <p className="mt-3 text-lg font-medium text-white/90">
+                Only 3 minutes. Build your streak.
+              </p>
+              <Link
+                to="/start-practice"
+                data-testid="start-practice-button"
+                className="mt-6 inline-flex items-center gap-2 rounded-2xl border-b-4 border-white/40 bg-white px-6 py-4 text-lg font-extrabold text-indigo-700 transition hover:bg-white/95 active:translate-y-1 active:border-b-0"
+              >
+                Start Now <ArrowRight weight="bold" />
+              </Link>
+            </div>
+            <div className="hidden flex-shrink-0 items-center gap-3 md:flex">
+              <div className="rounded-2xl bg-white/15 p-4 text-center backdrop-blur">
+                <div className="text-xs font-bold uppercase tracking-wider text-white/80">3 quick steps</div>
+                <div className="mt-2 space-y-1.5 text-sm font-bold">
+                  <div className="flex items-center gap-2"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/25 text-xs">1</span> Chat with Coach Ada</div>
+                  <div className="flex items-center gap-2"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/25 text-xs">2</span> Learn 1 word</div>
+                  <div className="flex items-center gap-2"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/25 text-xs">3</span> Fix a sentence</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </motion.section>
+      </div>
+    );
+  }
 
   const nextLesson = lessons.find((l) => !l.completed && !l.locked) || lessons.find((l) => !l.completed);
 
