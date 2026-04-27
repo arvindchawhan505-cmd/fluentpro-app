@@ -7,6 +7,8 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/AppShell";
 import PremiumPrompt from "@/components/PremiumPrompt";
 import GoalOnboardingModal from "@/components/GoalOnboardingModal";
+import StreakProtectorBanner from "@/components/StreakProtectorBanner";
+import UpgradeNudgeModal from "@/components/UpgradeNudgeModal";
 import Landing from "@/pages/Landing";
 import Dashboard from "@/pages/Dashboard";
 import Conversation from "@/pages/Conversation";
@@ -25,6 +27,8 @@ function Protected({ children }) {
       <AppShell>{children}</AppShell>
       <PremiumPrompt />
       <GoalOnboardingModal />
+      <StreakProtectorBanner />
+      <UpgradeNudgeModal />
     </ProtectedRoute>
   );
 }

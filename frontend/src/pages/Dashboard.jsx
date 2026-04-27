@@ -11,6 +11,8 @@ import StreakFlame from "@/components/StreakFlame";
 import ShareStreakModal from "@/components/ShareStreakModal";
 import DailyCheckinCard from "@/components/DailyCheckinCard";
 import DailyChallengeCard from "@/components/DailyChallengeCard";
+import OnboardingQuestCard from "@/components/OnboardingQuestCard";
+import ReferralCard from "@/components/ReferralCard";
 import LevelBadge from "@/components/LevelBadge";
 
 const quickActions = [
@@ -90,8 +92,10 @@ export default function Dashboard() {
         </div>
       </motion.section>
 
+      <OnboardingQuestCard />
       <DailyChallengeCard />
       <DailyCheckinCard />
+      <ReferralCard />
 
       <section>
         <h2 className="mb-4 text-xl font-bold text-slate-800" style={{ fontFamily: "Nunito, sans-serif" }}>

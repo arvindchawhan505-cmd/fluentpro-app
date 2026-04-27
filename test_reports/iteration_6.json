@@ -1,0 +1,37 @@
+{
+  "summary": "Iteration 6 backend-only testing of 3-day Onboarding Quest endpoints. 8/8 pytest cases in /app/backend/tests/test_onboarding_quest.py PASSED on REACT_APP_BACKEND_URL (4.7s). Covered: (1) auth gating on GET /api/onboarding/quest -> 401, (2) initial quest shape {tasks[6 each with day/key/label/metric/done], completed:false, claimed:false, tasks_done:0, tasks_total:6, reward_xp:200, badge:'Welcome Streak', days_since_signup:int>=0}, (3) day groupings exactly Day1=[day1_chat,day1_lesson] Day2=[day2_pron,day2_vocab] Day3=[day3_writing,day3_grammar], (4) POST /api/onboarding/quest/claim before completion -> 400, (5) organic metric flip via POST /api/grammar/check flips day3_grammar.done=true (and verified user_metrics.grammar_checks>=1 in Mongo), (6) simulated full completion by directly setting user_metrics doc (pronunciation_good/conversation_messages/lessons_completed/vocab_words_seen/writing_submitted/grammar_checks), GET returns completed:true claimed:false tasks_done:6, POST /claim -> {already_claimed:false, xp_awarded:200, badge:'Welcome Streak'}, second claim -> {already_claimed:true, xp_awarded:0}, GET /api/progress XP delta == exactly 200, XP unchanged on second claim, (7) regression /api/challenge/today still returns full shape, (8) regression /api/lessons still returns list. State pre-cleared via mongosh for user_metrics/onboarding_quests/challenges/usage_logs collections of test-user-english-coach.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/onboarding/quest", "issue": "_quest_state uses feature_totals (from usage_logs) + aggregate (user_metrics) for each metric — this double counts when the same metric accidentally appears in both stores. Currently safe because the wrapped increment_challenge_metric writes to user_metrics only and no task metric matches a free-tier feature key, but brittle if future endpoints start logging a task metric into usage_logs."},
+      {"endpoint": "/api/onboarding/quest", "issue": "days_since_signup parses created_at via datetime.fromisoformat which fails silently for ISO strings ending in 'Z' (returns 0). Consider normalizing 'Z' -> '+00:00' before parsing."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_onboarding_quest.py",
+    "/app/test_reports/pytest/pytest_iter6.xml"
+  ],
+  "action_items": [
+    "None blocking for this iteration. Optional: harden days_since_signup ISO parsing and remove the usage_logs double-read path in _quest_state (aggregate-only is sufficient since increment_challenge_metric writes to user_metrics).",
+    "Carryover from iter5 (not re-tested here): writing_feedback already calls increment_challenge_metric('writing_submitted',1) at server.py L442 — iter5 bug is fixed. Re-run iter5 suite if needed.",
+    "Long-standing: server.py is now 1240 lines — split into routers (auth/profile/lessons/billing/checkin/challenge/onboarding/llm)."
+  ],
+  "critical_code_review_comments": [
+    "_quest_state aggregates feature_totals from usage_logs AND user_metrics and sums them per metric — harmless today but a latent bug; pick one source of truth (user_metrics).",
+    "Wrapping pattern (_orig_increment_challenge_metric then re-binding name) at server.py L1097-1102 works but is brittle — anyone importing increment_challenge_metric at module-import time (e.g. from another module) would get the un-wrapped version. Prefer calling _bump_metric directly from within increment_challenge_metric.",
+    "POST /api/onboarding/quest/claim returns 200 on second claim with already_claimed:true — consistent with /api/challenge/claim. Good.",
+    "No idempotency concern around simultaneous claims: update_one with $set claimed:true after a state check — a race could double-award XP. Consider a conditional update ({claimed: {$ne: true}}) before crediting XP.",
+    "server.py ~1240 lines — past 700-line threshold; routers split overdue."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_onboarding_quest.py"
+  ],
+  "success_rate": {"backend": "100% (8/8)", "frontend": "not tested (backend-only request)"},
+  "test_credentials": "Bearer test_session_english_coach_v1 (user_id=test-user-english-coach, is_premium=false). Session still valid.",
+  "seed_data_creation": "Pre-test: cleared db.user_metrics, db.onboarding_quests, db.challenges, db.usage_logs for user_id=test-user-english-coach. During TestCompleteAndClaim: directly upserted db.user_metrics doc with pronunciation_good:1, conversation_messages:1, lessons_completed:1, vocab_words_seen:5, writing_submitted:1, grammar_checks:2. After suite: onboarding_quest doc exists with claimed:true; user XP advanced by exactly +200 from claim (plus ~10 from the one grammar_check call earlier). All six task 'done' bits are set via user_metrics aggregates.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Six backend test files now in /app/backend/tests/: test_english_coach_api.py, test_premium_and_share.py, test_goal_onboarding.py, test_daily_checkin.py, test_challenges_levels_conversation.py, test_onboarding_quest.py (iter6 NEW). Run all: `pytest /app/backend/tests/ -v --junitxml=/app/test_reports/pytest/pytest_results.xml`. To reset iter6 state: `mongosh --quiet --eval \"db=db.getSiblingDB('test_database'); db.user_metrics.deleteMany({user_id:'test-user-english-coach'}); db.onboarding_quests.deleteMany({user_id:'test-user-english-coach'}); db.challenges.deleteMany({user_id:'test-user-english-coach'}); db.usage_logs.deleteMany({user_id:'test-user-english-coach'});\"`. If running iter5 test_challenges_levels_conversation.py after iter6 fixed the writing_submitted increment, TestWritingSubmittedMetricBug assertion (expects progress==0 after writing_feedback) will now FAIL — invert that assertion. The wrapped increment_challenge_metric writes to user_metrics AND usage_logs? No — only user_metrics via _bump_metric; the original writes to db.challenges. Frontend streak-protector banner and upgrade nudge modal were NOT tested (frontend-only, out of scope for this request).",
+  "rca of the issue": "No bugs found in this iteration. All onboarding quest behaviour matches spec."
+}

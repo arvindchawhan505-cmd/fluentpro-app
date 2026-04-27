@@ -1044,6 +1044,173 @@ async def challenge_claim(request: Request,
     return {"already_claimed": False, "xp_awarded": reward}
 
 
+# ---------- 3-day Onboarding Quest ----------
+QUEST_TASKS = [
+    {"day": 1, "key": "day1_chat", "label": "Chat with Coach Ada", "metric": "conversation_messages"},
+    {"day": 1, "key": "day1_lesson", "label": "Finish a lesson", "metric": "lessons_completed"},
+    {"day": 2, "key": "day2_pron", "label": "Practice pronunciation", "metric": "pronunciation_good"},
+    {"day": 2, "key": "day2_vocab", "label": "Review vocabulary words", "metric": "vocab_words_seen"},
+    {"day": 3, "key": "day3_writing", "label": "Submit writing for feedback", "metric": "writing_submitted"},
+    {"day": 3, "key": "day3_grammar", "label": "Run a grammar check", "metric": "grammar_checks"},
+]
+QUEST_REWARD_XP = 200
+
+
+async def _quest_state(user_id: str) -> dict:
+    """Compute state of onboarding quest from usage_logs (any-time-historical)."""
+    docs = await db.usage_logs.find({"user_id": user_id}, {"_id": 0, "feature": 1, "count": 1}).to_list(200)
+    feature_totals = {}
+    for d in docs:
+        feature_totals[d["feature"]] = feature_totals.get(d["feature"], 0) + d.get("count", 0)
+    # also collapse our richer metric store via challenges? simpler: also peek lessons_completed via user.completed_lesson_ids count
+    # For metrics not in usage_logs (e.g. lessons_completed, vocab_words_seen, pronunciation_good, conversation_messages, writing_submitted, grammar_checks, checkin_done) — we already track these via our challenge increment. They're not in usage_logs. We track challenges separately so let's use db.challenges history instead.
+    # Simpler: keep an aggregate counter doc per user.
+    aggregate = await db.user_metrics.find_one({"user_id": user_id}, {"_id": 0}) or {}
+
+    tasks = []
+    for t in QUEST_TASKS:
+        done_count = aggregate.get(t["metric"], 0) + feature_totals.get(t["metric"], 0)
+        tasks.append({**t, "done": done_count > 0})
+
+    completed = all(t["done"] for t in tasks)
+    quest_doc = await db.onboarding_quests.find_one({"user_id": user_id}, {"_id": 0})
+    claimed = bool(quest_doc and quest_doc.get("claimed"))
+
+    return {"tasks": tasks, "completed": completed, "claimed": claimed,
+            "tasks_done": sum(1 for t in tasks if t["done"]),
+            "tasks_total": len(tasks),
+            "reward_xp": QUEST_REWARD_XP,
+            "badge": "Welcome Streak"}
+
+
+async def _bump_metric(user_id: str, metric: str, by: int = 1):
+    """Aggregate metric counter (used by onboarding quest)."""
+    if by <= 0:
+        return
+    await db.user_metrics.update_one(
+        {"user_id": user_id},
+        {"$inc": {metric: by}, "$setOnInsert": {"user_id": user_id}},
+        upsert=True,
+    )
+
+
+# Wrap increment_challenge_metric to also bump aggregate counter
+_orig_increment_challenge_metric = increment_challenge_metric
+
+async def increment_challenge_metric(user_id: str, metric: str, by: int = 1):  # type: ignore[no-redef]
+    await _bump_metric(user_id, metric, by)
+    await _orig_increment_challenge_metric(user_id, metric, by)
+
+
+@api_router.get("/onboarding/quest")
+async def onboarding_quest(request: Request,
+                           session_token: Optional[str] = Cookie(None),
+                           authorization: Optional[str] = Header(None)):
+    user = await get_current_user(request, session_token, authorization)
+    state = await _quest_state(user.user_id)
+    # Days since signup for upgrade nudge eligibility
+    user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "created_at": 1})
+    days_since_signup = 0
+    if user_doc and user_doc.get("created_at"):
+        try:
+            created = datetime.fromisoformat(user_doc["created_at"])
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=timezone.utc)
+            days_since_signup = max(0, (datetime.now(timezone.utc) - created).days)
+        except Exception:
+            pass
+    return {**state, "days_since_signup": days_since_signup}
+
+
+@api_router.post("/onboarding/quest/claim")
+async def onboarding_quest_claim(request: Request,
+                                 session_token: Optional[str] = Cookie(None),
+                                 authorization: Optional[str] = Header(None)):
+    user = await get_current_user(request, session_token, authorization)
+    state = await _quest_state(user.user_id)
+    if not state["completed"]:
+        raise HTTPException(status_code=400, detail="Quest not yet completed")
+    if state["claimed"]:
+        return {"already_claimed": True, "xp_awarded": 0, "badge": state["badge"]}
+    await db.onboarding_quests.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"user_id": user.user_id, "claimed": True, "claimed_at": datetime.now(timezone.utc).isoformat(), "badge": state["badge"]}},
+        upsert=True,
+    )
+    await update_streak_and_xp(user.user_id, QUEST_REWARD_XP)
+    return {"already_claimed": False, "xp_awarded": QUEST_REWARD_XP, "badge": state["badge"]}
+
+
+# ---------- Referral system ----------
+REFERRER_REWARD = 100  # XP for referrer when invitee redeems
+INVITEE_REWARD = 50    # XP bonus for invitee on signup with code
+
+
+def _make_ref_code(user_id: str) -> str:
+    h = hashlib.sha256(user_id.encode()).hexdigest()[:6].upper()
+    return f"FP-{h}"
+
+
+@api_router.get("/referral/me")
+async def referral_me(request: Request,
+                      session_token: Optional[str] = Cookie(None),
+                      authorization: Optional[str] = Header(None)):
+    user = await get_current_user(request, session_token, authorization)
+    code = _make_ref_code(user.user_id)
+    redemptions = await db.referrals.count_documents({"referrer_user_id": user.user_id})
+    xp_earned = redemptions * REFERRER_REWARD
+    base_url = os.environ.get("PUBLIC_APP_URL")  # optional
+    link = f"{base_url}/?ref={code}" if base_url else f"/?ref={code}"
+    return {
+        "code": code,
+        "link": link,
+        "redemptions": redemptions,
+        "xp_earned": xp_earned,
+        "referrer_reward": REFERRER_REWARD,
+        "invitee_reward": INVITEE_REWARD,
+        "share_text": f"I'm using FluentPro to learn English with an AI coach — try it with my code {code} and we both get bonus XP! 🚀",
+    }
+
+
+class ApplyReferralRequest(BaseModel):
+    code: str
+
+
+@api_router.post("/referral/apply")
+async def referral_apply(body: ApplyReferralRequest, request: Request,
+                         session_token: Optional[str] = Cookie(None),
+                         authorization: Optional[str] = Header(None)):
+    user = await get_current_user(request, session_token, authorization)
+    code = (body.code or "").strip().upper()
+    if not code:
+        raise HTTPException(status_code=400, detail="Code required")
+    if code == _make_ref_code(user.user_id):
+        raise HTTPException(status_code=400, detail="You can't use your own code")
+    # Find the referrer by reverse-checking codes (small user base; index later)
+    candidate = None
+    async for u in db.users.find({}, {"_id": 0, "user_id": 1}):
+        if _make_ref_code(u["user_id"]) == code:
+            candidate = u
+            break
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Invalid code")
+    referrer_user_id = candidate["user_id"]
+    # Check if user already redeemed
+    existing = await db.referrals.find_one({"invitee_user_id": user.user_id})
+    if existing:
+        return {"already_redeemed": True, "xp_awarded": 0}
+    await db.referrals.insert_one({
+        "referrer_user_id": referrer_user_id,
+        "invitee_user_id": user.user_id,
+        "code": code,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    # Award XP both sides
+    await update_streak_and_xp(user.user_id, INVITEE_REWARD)
+    await db.users.update_one({"user_id": referrer_user_id}, {"$inc": {"xp": REFERRER_REWARD}})
+    return {"already_redeemed": False, "xp_awarded": INVITEE_REWARD, "referrer_reward": REFERRER_REWARD}
+
+
 # ---------- Billing (MOCKED — no real Razorpay payment) ----------
 PREMIUM_PRICE_INR = 99
 

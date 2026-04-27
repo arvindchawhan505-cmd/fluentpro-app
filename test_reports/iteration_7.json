@@ -1,0 +1,41 @@
+{
+  "summary": "Iteration 7 backend-only testing of FluentPro referral system. 14/14 pytest cases in /app/backend/tests/test_referral.py PASSED on REACT_APP_BACKEND_URL (3.13s). Covered: (1) GET /api/referral/me requires auth (401/403 unauth), (2) full response shape {code matches ^FP-[0-9A-F]{6}$, link contains code, redemptions:0, xp_earned:0, referrer_reward:100, invitee_reward:50, share_text contains code}, (3) deterministic — same user gets the same code on repeat calls, (4) different users get different codes, (5) POST /api/referral/apply with empty code -> 400, (6) missing 'code' field -> 422 (Pydantic validation), (7) own code -> 400 'You can't use your own code', (8) invalid code 'FP-NOPE12' -> 404 'Invalid code', (9) Happy-path: created second test user (user_id=test-user-referral-2, token=test_session_referral_v2) via mongosh, fetched their code, user1 applied -> 200 with already_redeemed:false, xp_awarded:50, referrer_reward:100. Verified XP via /api/progress: user1 (invitee) +50 exactly, user2 (referrer) +100 exactly. (10) Re-applying same code -> 200 already_redeemed:true, xp_awarded:0, no XP delta. (11) User2 /api/referral/me now shows redemptions:1, xp_earned:100. (12) Regression: /api/onboarding/quest 200 with full task shape (6 tasks), /api/challenge/today 200, /api/lessons 200 (returns {goal, lessons:[...]} dict, not bare list — test accepts both shapes).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/referral/apply", "issue": "Code lookup iterates ALL users via async cursor and re-hashes each (server.py L1191-1194). O(N) per apply call — fine at low scale, but at >10k users this is a hot path; add a unique-indexed referral_codes collection or store code on the user document. Code comment already calls this out: 'small user base; index later'."},
+      {"endpoint": "/api/referral/apply", "issue": "Race condition: between the existing-redemption check (L1199) and the insert (L1202), two concurrent requests by the same invitee could both pass the check and double-credit XP. Either add a unique index on referrals.invitee_user_id and catch DuplicateKeyError, or use an upsert with a $setOnInsert guard."},
+      {"endpoint": "/api/referral/apply", "issue": "No unique index on referrals.invitee_user_id; only application-level check prevents duplicates. Spec implies one redemption per invitee — should be enforced at DB layer."},
+      {"endpoint": "/api/referral/me", "issue": "Link is relative ('/?ref=CODE') when PUBLIC_APP_URL env var is not set (server.py L1162-1163). Share text is shareable but link is not — users copying the link from share_text would get a relative URL. Either set PUBLIC_APP_URL in /app/backend/.env or fall back to the request's origin/REACT_APP_BACKEND_URL."},
+      {"endpoint": "/api/referral/apply", "issue": "Referrer XP is awarded via raw db.users.update_one $inc xp by 100 (L1210), bypassing update_streak_and_xp — so the referrer does not get streak credit / level recompute / last_active_date update from the referral. Invitee uses update_streak_and_xp (gets full bookkeeping). Behaviour asymmetric."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_referral.py",
+    "/app/test_reports/pytest/pytest_iter7.xml"
+  ],
+  "action_items": [
+    "Optional: add unique index on db.referrals.invitee_user_id and use insert+catch-duplicate to close the double-redeem race window.",
+    "Optional: set PUBLIC_APP_URL in backend/.env (or derive from request) so /api/referral/me returns an absolute, shareable referral link.",
+    "Optional: route the referrer's +100 XP through update_streak_and_xp for symmetry with the invitee path (currently the referrer's level/streak/last_active_date aren't refreshed on a redemption).",
+    "Optional (perf): index referral codes — store code on the user doc at signup, or maintain a referral_codes collection — to avoid the O(N) full-users scan on every apply."
+  ],
+  "critical_code_review_comments": [
+    "server.py is now ~1310 lines; long overdue for router split (auth/profile/lessons/billing/checkin/challenge/onboarding/llm/referral). Same comment as iter5/iter6.",
+    "Apply endpoint has a TOCTOU race on 'already redeemed' — needs a unique index on invitee_user_id to be truly idempotent under concurrency.",
+    "Asymmetric XP path: invitee via update_streak_and_xp, referrer via raw $inc — easy to drift over time; consolidate both behind one helper.",
+    "Code generation uses sha256 first 6 hex chars — only 16M codespace. Acceptable for now but collision probability ~birthday paradox at ~4k users; not enforced unique. If that's a concern, add a uniqueness check at signup or widen the code.",
+    "Link in /api/referral/me falls back to a relative URL when PUBLIC_APP_URL is unset — not user-shareable as-is."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_referral.py"
+  ],
+  "success_rate": {"backend": "100% (14/14)", "frontend": "not tested (backend-only request)"},
+  "test_credentials": "User1: Bearer test_session_english_coach_v1 (user_id=test-user-english-coach). User2 (created this iter): Bearer test_session_referral_v2 (user_id=test-user-referral-2, email=ref2@example.com). Both sessions valid 7 days from creation.",
+  "seed_data_creation": "Created second user via mongosh: user_id=test-user-referral-2 with session_token=test_session_referral_v2 (7-day expiry). Cleared db.referrals between subtests via fixture/inline deleteMany. Post-suite: db.referrals contains exactly one doc {referrer_user_id:test-user-referral-2, invitee_user_id:test-user-english-coach, code:<user2 code>}. user1 XP advanced by +50 from referral, user2 XP advanced by +100 from referral.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Seven backend test files now in /app/backend/tests/: test_english_coach_api.py, test_premium_and_share.py, test_goal_onboarding.py, test_daily_checkin.py, test_challenges_levels_conversation.py, test_onboarding_quest.py, test_referral.py (iter7 NEW). Run all: `pytest /app/backend/tests/ -v --junitxml=/app/test_reports/pytest/pytest_results.xml`. To reset iter7 state only: `mongosh --quiet --eval \"db=db.getSiblingDB('test_database'); db.referrals.deleteMany({});\"`. Second test user (test-user-referral-2 / test_session_referral_v2) is persisted; recreate with the snippet in the iter7 review_request if dropped. /api/lessons returns {goal, lessons:[...]} (not a bare list) — note for any new lessons assertions. Frontend streak-protector banner and upgrade-nudge modal still NOT tested (frontend-only, out of scope here). Referral system has no frontend integration tests yet — main agent should add a referral entry-point UI (input + share-code panel) and a separate testing pass when that lands.",
+  "rca of the issue": "No bugs found. All 9 spec requirements in the iter7 review_request validated end-to-end against the deployed REACT_APP_BACKEND_URL. Only minor latent issues flagged (race window, relative link, asymmetric XP path) — none affect the happy-path behaviour exercised by the spec."
+}

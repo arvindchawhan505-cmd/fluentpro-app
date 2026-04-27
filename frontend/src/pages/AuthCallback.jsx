@@ -25,7 +25,12 @@ export default function AuthCallback() {
       try {
         const { data } = await api.post("/auth/session", { session_id: sessionId });
         setUser(data.user);
-        // Remove hash and go to dashboard
+        // Apply pending referral code (if landed via /?ref=CODE)
+        const pending = sessionStorage.getItem("pending_ref_code");
+        if (pending) {
+          try { await api.post("/referral/apply", { code: pending }); } catch { /* invalid or already applied — ignore */ }
+          sessionStorage.removeItem("pending_ref_code");
+        }
         window.history.replaceState({}, document.title, "/dashboard");
         navigate("/dashboard", { replace: true, state: { user: data.user } });
       } catch (e) {

@@ -9,6 +9,10 @@ export default function Landing() {
   const { user } = useAuth();
 
   const handleLogin = () => {
+    // Stash any incoming ?ref= code so we can apply it after auth callback
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get("ref");
+    if (ref) sessionStorage.setItem("pending_ref_code", ref);
     const redirectUrl = window.location.origin + "/dashboard";
     window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
   };
