@@ -16,9 +16,11 @@ export default function ReferralCard() {
 
   if (!data) return null;
 
-  const fullLink = (typeof window !== "undefined")
-    ? `${window.location.origin}${data.link}`
-    : data.link;
+  // If backend returned an absolute URL (PUBLIC_APP_URL set), use it as-is.
+  // Otherwise concat with the current origin so the link is always shareable.
+  const fullLink = /^https?:\/\//i.test(data.link)
+    ? data.link
+    : (typeof window !== "undefined" ? `${window.location.origin}${data.link}` : data.link);
 
   const copy = async () => {
     try {

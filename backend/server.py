@@ -1159,7 +1159,7 @@ async def referral_me(request: Request,
     code = _make_ref_code(user.user_id)
     redemptions = await db.referrals.count_documents({"referrer_user_id": user.user_id})
     xp_earned = redemptions * REFERRER_REWARD
-    base_url = os.environ.get("PUBLIC_APP_URL")  # optional
+    base_url = os.environ.get("PUBLIC_APP_URL")
     link = f"{base_url}/?ref={code}" if base_url else f"/?ref={code}"
     return {
         "code": code,
@@ -1195,19 +1195,22 @@ async def referral_apply(body: ApplyReferralRequest, request: Request,
     if not candidate:
         raise HTTPException(status_code=404, detail="Invalid code")
     referrer_user_id = candidate["user_id"]
-    # Check if user already redeemed
+    # Check if user already redeemed (DB unique index also guards races)
     existing = await db.referrals.find_one({"invitee_user_id": user.user_id})
     if existing:
         return {"already_redeemed": True, "xp_awarded": 0}
-    await db.referrals.insert_one({
-        "referrer_user_id": referrer_user_id,
-        "invitee_user_id": user.user_id,
-        "code": code,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    })
-    # Award XP both sides
+    try:
+        await db.referrals.insert_one({
+            "referrer_user_id": referrer_user_id,
+            "invitee_user_id": user.user_id,
+            "code": code,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+    except Exception:
+        return {"already_redeemed": True, "xp_awarded": 0}
+    # Award XP both sides via the same helper (symmetric)
     await update_streak_and_xp(user.user_id, INVITEE_REWARD)
-    await db.users.update_one({"user_id": referrer_user_id}, {"$inc": {"xp": REFERRER_REWARD}})
+    await update_streak_and_xp(referrer_user_id, REFERRER_REWARD)
     return {"already_redeemed": False, "xp_awarded": INVITEE_REWARD, "referrer_reward": REFERRER_REWARD}
 
 
@@ -1302,6 +1305,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+async def ensure_indexes():
+    try:
+        await db.referrals.create_index("invitee_user_id", unique=True)
+        await db.user_sessions.create_index("session_token", unique=True)
+    except Exception as e:
+        logger.warning(f"index creation skipped: {e}")
 
 
 @app.on_event("shutdown")

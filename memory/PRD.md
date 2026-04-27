@@ -126,9 +126,35 @@
 - All conversation chrome (scenario picker, send button, focus rings) repainted to brand gradient
 
 ### Test results
-- Backend iter-1: 18/18 ✅ · iter-2: 15/15 ✅ · iter-3: 12/12 ✅ · iter-4: 13/13 ✅ · iter-5: 14/14 ✅
-- **Total: 72/72 backend tests passing**
-- 1 critical fix during iter-5: `/api/writing/feedback` now correctly increments `writing_submitted` metric for daily challenge progress
+- Backend iter-1: 18/18 ✅ · iter-2: 15/15 ✅ · iter-3: 12/12 ✅ · iter-4: 13/13 ✅ · iter-5: 14/14 ✅ · iter-6: 12/12 ✅ · iter-7: 14/14 ✅
+- **Total: 98/98 backend tests passing**
+- 1 critical fix during iter-5: `/api/writing/feedback` writing_submitted metric increment
+
+### 3-day Onboarding Quest (added 2026-04-27)
+- New users see a "3-DAY ONBOARDING QUEST" card on dashboard with 3 day columns (Day 1: chat + lesson · Day 2: pronunciation + vocab · Day 3: writing + grammar)
+- Tasks tick off automatically as user completes them; current day highlighted with indigo ring
+- On completion: claim "+200 XP & 'Welcome Streak' badge" with confetti
+- Backend: `GET /api/onboarding/quest`, `POST /api/onboarding/quest/claim`, aggregate `db.user_metrics` collection
+
+### Streak Protector (added 2026-04-27)
+- Floating bottom banner appears in app when `streak >= 3 && last_active_date != today && local hour >= 21`
+- "Don't break your streak 🔥 — 60 seconds keeps it alive."
+- One-click **Resume now** button → dashboard
+- Dismiss persists for the day in localStorage
+
+### Upgrade Nudge Modal (added 2026-04-27)
+- Auto-popup for non-premium users when `days_since_signup >= 3 OR onboarding_quest.claimed`
+- Amber→orange→rose gradient hero, "You're improving fast 🚀"
+- 4-bullet feature list + animated pulsing CTA → `/premium`
+- "Maybe later" + click-outside dismiss persists for the day
+
+### Referral System (added 2026-04-27)
+- Each user has a unique `FP-XXXXXX` code (sha256-derived, deterministic)
+- Backend: `GET /api/referral/me` (returns code, link, redemptions, xp_earned, share_text), `POST /api/referral/apply` (one-shot per invitee, awards +50 XP invitee + +100 XP referrer)
+- Unique index on `db.referrals.invitee_user_id` to prevent double-redeem race
+- Symmetric XP path via `update_streak_and_xp` for both sides
+- `?ref=CODE` URL param captured on Landing → stored in sessionStorage → applied automatically on AuthCallback
+- Frontend: emerald-themed `<ReferralCard>` on dashboard with code/link, Copy/WhatsApp/Native Share buttons, friend count + XP earned panel
 
 ### Test results
 - Backend iter-1: 18/18 ✅ · iter-2: 15/15 ✅ · iter-3 (goal onboarding): 12/12 ✅
