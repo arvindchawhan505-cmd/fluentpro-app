@@ -264,6 +264,7 @@ async def process_session(request: Request, response: Response):
             "goal": None,
             "has_completed_day1": False,
             "actions_completed": 0,
+            "referral_code": _make_ref_code(user_id),
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
 
@@ -1318,12 +1319,8 @@ async def referral_apply(body: ApplyReferralRequest, request: Request,
         raise HTTPException(status_code=400, detail="Code required")
     if code == _make_ref_code(user.user_id):
         raise HTTPException(status_code=400, detail="You can't use your own code")
-    # Find the referrer by reverse-checking codes (small user base; index later)
-    candidate = None
-    async for u in db.users.find({}, {"_id": 0, "user_id": 1}):
-        if _make_ref_code(u["user_id"]) == code:
-            candidate = u
-            break
+    # Indexed lookup on users.referral_code (backfilled at startup, written at signup)
+    candidate = await db.users.find_one({"referral_code": code}, {"_id": 0, "user_id": 1})
     if not candidate:
         raise HTTPException(status_code=404, detail="Invalid code")
     referrer_user_id = candidate["user_id"]
@@ -1444,6 +1441,14 @@ async def ensure_indexes():
     try:
         await db.referrals.create_index("invitee_user_id", unique=True)
         await db.user_sessions.create_index("session_token", unique=True)
+        await db.users.create_index("referral_code", sparse=True)
+        await db.daily_paths.create_index([("user_id", 1), ("date", 1)], unique=True)
+        # Lazy backfill: ensure every existing user has referral_code stored
+        async for u in db.users.find({"referral_code": {"$exists": False}}, {"_id": 0, "user_id": 1}):
+            await db.users.update_one(
+                {"user_id": u["user_id"]},
+                {"$set": {"referral_code": _make_ref_code(u["user_id"])}},
+            )
     except Exception as e:
         logger.warning(f"index creation skipped: {e}")
 
