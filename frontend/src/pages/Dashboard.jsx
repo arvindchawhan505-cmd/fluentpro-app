@@ -14,6 +14,7 @@ import DailyChallengeCard from "@/components/DailyChallengeCard";
 import OnboardingQuestCard from "@/components/OnboardingQuestCard";
 import ReferralCard from "@/components/ReferralCard";
 import LevelBadge from "@/components/LevelBadge";
+import DailyPathCard from "@/components/DailyPathCard";
 
 const quickActions = [
   { to: "/conversation", title: "Chat with Coach", subtitle: "Practice real conversations", icon: ChatsCircle, color: "from-blue-500 to-violet-500", testId: "quick-conversation" },
@@ -148,6 +149,7 @@ export default function Dashboard() {
         </div>
       </motion.section>
 
+      <DailyPathCard />
       <OnboardingQuestCard />
       <DailyChallengeCard />
       <DailyCheckinCard />

@@ -1,0 +1,44 @@
+{
+  "summary": "Iteration 8 — full backend+frontend validation of (1) streamlined Day-1 onboarding and (2) Daily Learning Path retention loop. Backend: 19/19 pytest tests PASSED in /app/backend/tests/test_daily_path_and_onboarding.py (~22s) against REACT_APP_BACKEND_URL. Covered day1 first-call-awards-10xp + idempotency + /auth/me flip, daily-path templates (job_interview keys=[chat,writing,grammar], casual fallback for goal=null keys=[chat,vocab,checkin]), task shape (key/title/metric/target/progress/done/to/icon), initial state (tasks_done=0, completed=false, claimed=false, reward_xp=30), baseline snapshot stability across reads, activity-driven progress (POST /api/grammar/check bumps grammar task from 0→1), claim 400 when incomplete, claim +30 XP first call and idempotent second call, and regression on /auth/me /progress /lessons /checkin/today /challenge/today /onboarding/quest /referral/me /vocabulary/daily (POST) /pronunciation/sentence (POST). Frontend: Playwright run on /dashboard /conversation /start-practice with session_token cookie — verified sidebar renders exactly the 7 spec labels (Today/Lessons/Speak with AI/Learn Words/Pronunciation/Improve Writing/Fix My English) plus Premium for non-premium user (AppShell `nav` constant fix confirmed working), DailyPathCard visible with 0/3 ring + three task tiles (daily-path-task-chat/writing/grammar) + correct Start links (/conversation, /writing, /grammar), ContinueLearningBanner correctly appears on /conversation (text 'NEXT UP · 0/3 Submit 1 writing piece Continue') and correctly hidden on /dashboard and /start-practice, /start-practice renders practice-step-1 + practice-progress-bar + step counter ('STEP 1 OF 3') — steps 2/3 are conditionally rendered (only current step in DOM), which matches the component code.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/daily-path", "issue": "When `goal` is set to an unknown value, it silently falls back to the 'casual' template and stores goal_key='casual' in db.daily_paths — no validation warning. Acceptable, but a log line would help debug mis-set goals."},
+      {"endpoint": "POST /api/daily-path/claim", "issue": "Claim bypasses validation that today's tasks are STILL satisfied — if state is re-computed between the /claim POST and the $set, it could award under-earned XP. Since state is recomputed immediately before the check on L1262, risk is essentially nil, but there's no unique-index protection against concurrent double-claim (same TOCTOU pattern as /referral/apply flagged in iter7)."},
+      {"endpoint": "Daily-path baseline", "issue": "Baseline is user_metrics values at 'first call of the day', which means the FIRST call to /api/daily-path must happen before any activity that day — otherwise that morning's activity counts toward baseline and the user effectively needs to do the work twice. Consider snapshotting baseline at midnight (cron) or at day-1 completion to avoid this edge case."},
+      {"endpoint": "POST /api/onboarding/day1/complete", "issue": "No server-side gate verifying the user actually ran chat+vocab+grammar before marking day1 complete. A client could call /api/onboarding/day1/complete directly from dev-tools and skip the 3-step flow. Low-risk but trust-the-client."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/dashboard", "issues": ["An upgrade-nudge 'You're improving fast' modal auto-opens over the dashboard on load for non-premium users — it obscures the DailyPathCard until dismissed. Consider delaying this modal until after 1st interaction, or showing it only every N sessions."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_daily_path_and_onboarding.py",
+    "/app/test_reports/pytest/pytest_iter8.xml"
+  ],
+  "action_items": [
+    "Optional: tighten POST /api/onboarding/day1/complete to require the 3 activity metrics (conversation_messages>=1, vocab_words_seen>=1, grammar_checks>=1) so users can't skip the flow via direct API call.",
+    "Optional: add unique index on db.daily_paths.(user_id,date) and consider snapshotting baseline at day rollover (not first /daily-path call) to close the 'early-morning activity steals from baseline' edge case.",
+    "Optional UX: the upgrade-nudge modal opens on every dashboard visit — throttle it (e.g., once per day or after completing a task) so it doesn't compete with DailyPathCard attention."
+  ],
+  "critical_code_review_comments": [
+    "server.py is at ~1454 lines now — overdue for a router split (auth/profile/lessons/billing/checkin/challenge/onboarding/daily-path/referral). Iter8 added ~110 more lines to the same file.",
+    "_daily_path_doc() re-reads the doc on L1218 after insert; cleaner to return the inserted doc directly and skip the extra round-trip.",
+    "Both /onboarding/day1/complete and /daily-path/claim use the same '$set + update_streak_and_xp' pattern — extract a small helper to keep idempotency logic consistent across new reward endpoints.",
+    "DailyPathCard is purely read-triggered; consider SSE/websocket or an explicit 'mark-complete' after activity-pages navigate back to dashboard to avoid relying on the `window focus` listener for refresh (it won't fire if user navigates in-SPA without tab change)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_daily_path_and_onboarding.py"
+  ],
+  "success_rate": {"backend": "100% (19/19)", "frontend": "100% (all spec-required selectors present; banner gating verified on 3 routes)"},
+  "test_credentials": "User1: Bearer test_session_english_coach_v1 (user_id=test-user-english-coach, goal=job_interview, has_completed_day1=true). User2: Bearer test_session_referral_v2 (user_id=test-user-referral-2, goal=null→casual). Frontend auth works by setting document.cookie 'session_token=<token>' before navigation (AuthContext uses withCredentials via axios). Bearer header also works for all backend tests.",
+  "seed_data_creation": "Reset user2 has_completed_day1=false at test start; ends with has_completed_day1=true. Cleared db.daily_paths and db.usage_logs for both users before pytest and before frontend run. After full run: user1.xp=626, has fresh daily_paths doc for today (goal_key=job_interview, claimed=true, all 3 tasks done). user2.xp=220 (initial 200 + 10 day1 + 10 implicit). To re-run cleanly: `mongosh --quiet --eval \"db=db.getSiblingDB('test_database'); db.daily_paths.deleteMany({}); db.usage_logs.deleteMany({user_id:{\\$in:['test-user-english-coach','test-user-referral-2']}}); db.users.updateOne({user_id:'test-user-referral-2'},{\\$set:{has_completed_day1:false}});\"`.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "8 test files now in /app/backend/tests/: test_english_coach_api.py, test_premium_and_share.py, test_goal_onboarding.py, test_daily_checkin.py, test_challenges_levels_conversation.py, test_onboarding_quest.py, test_referral.py, test_daily_path_and_onboarding.py (NEW iter8). Run all: `pytest /app/backend/tests/ -v --junitxml=/app/test_reports/pytest/pytest_results.xml`. For frontend auth in Playwright, set cookie session_token=<token> with domain=vocab-builder-263.preview.emergentagent.com, sameSite=None, secure=True before page.goto; Bearer header is dropped by axios for same-origin in browser. /api/vocabulary/daily and /api/pronunciation/sentence are POST (not GET). /api/conversation requires body.session_id in addition to scenario+message. Free-tier limits (conversation 5/day, grammar 3/day, writing 3/day, pronunciation 5/day) will bite if tests drive these metrics without clearing usage_logs first — the new test file handles this in reset_state fixture. The upgrade-nudge modal on /dashboard auto-opens on every visit; Playwright tests on /dashboard may need to dismiss it via `[data-testid=\"close\"]` or test with viewport scroll below it.",
+  "rca of the issue": "No bugs found. All iter8 spec requirements validated. Only latent design/hardening comments listed above — none affect happy-path behaviour. Note main agent's AppShell `nav` fix (line 25, `user?.is_premium ? NAV_BASE : [...NAV_BASE, NAV_PREMIUM]`) is confirmed working: non-premium test user sees all 8 sidebar entries (7 base + Premium)."
+}

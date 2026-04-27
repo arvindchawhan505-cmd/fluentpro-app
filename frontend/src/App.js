@@ -9,6 +9,7 @@ import PremiumPrompt from "@/components/PremiumPrompt";
 import GoalOnboardingModal from "@/components/GoalOnboardingModal";
 import StreakProtectorBanner from "@/components/StreakProtectorBanner";
 import UpgradeNudgeModal from "@/components/UpgradeNudgeModal";
+import PracticeNextStep from "@/components/PracticeNextStep";
 import Landing from "@/pages/Landing";
 import Dashboard from "@/pages/Dashboard";
 import Conversation from "@/pages/Conversation";
@@ -30,6 +31,7 @@ function Protected({ children }) {
       <GoalOnboardingModal />
       <StreakProtectorBanner />
       <UpgradeNudgeModal />
+      <PracticeNextStep />
     </ProtectedRoute>
   );
 }

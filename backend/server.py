@@ -1162,6 +1162,117 @@ async def onboarding_day1_complete(request: Request,
     return {"already_completed": False, "xp_awarded": 10}
 
 
+# ---------- Daily Learning Path (retention habit loop) ----------
+DAILY_PATH_REWARD_XP = 30
+
+DAILY_PATH_TEMPLATES = {
+    "job_interview": [
+        {"key": "chat", "title": "Chat 3 turns with Coach Ada", "metric": "conversation_messages", "target": 3, "to": "/conversation", "icon": "chat"},
+        {"key": "writing", "title": "Submit 1 writing piece", "metric": "writing_submitted", "target": 1, "to": "/writing", "icon": "writing"},
+        {"key": "grammar", "title": "Run 1 grammar check", "metric": "grammar_checks", "target": 1, "to": "/grammar", "icon": "grammar"},
+    ],
+    "travel": [
+        {"key": "chat", "title": "Chat 3 turns with Coach Ada", "metric": "conversation_messages", "target": 3, "to": "/conversation", "icon": "chat"},
+        {"key": "vocab", "title": "Review 5 new words", "metric": "vocab_words_seen", "target": 5, "to": "/vocabulary", "icon": "vocab"},
+        {"key": "pron", "title": "Nail 1 pronunciation (≥60)", "metric": "pronunciation_good", "target": 1, "to": "/pronunciation", "icon": "pron"},
+    ],
+    "ielts": [
+        {"key": "writing", "title": "Submit 1 writing piece", "metric": "writing_submitted", "target": 1, "to": "/writing", "icon": "writing"},
+        {"key": "vocab", "title": "Review 5 new words", "metric": "vocab_words_seen", "target": 5, "to": "/vocabulary", "icon": "vocab"},
+        {"key": "grammar", "title": "Run 2 grammar checks", "metric": "grammar_checks", "target": 2, "to": "/grammar", "icon": "grammar"},
+    ],
+    "casual": [
+        {"key": "chat", "title": "Chat 3 turns with Coach Ada", "metric": "conversation_messages", "target": 3, "to": "/conversation", "icon": "chat"},
+        {"key": "vocab", "title": "Review 5 new words", "metric": "vocab_words_seen", "target": 5, "to": "/vocabulary", "icon": "vocab"},
+        {"key": "checkin", "title": "Complete today's check-in", "metric": "checkin_done", "target": 1, "to": "/dashboard", "icon": "checkin"},
+    ],
+}
+
+
+async def _daily_path_doc(user_id: str, goal: Optional[str]) -> dict:
+    """Returns today's daily-path doc for the user. Snapshots baseline metrics on first call of the day."""
+    today = date.today().isoformat()
+    doc = await db.daily_paths.find_one({"user_id": user_id, "date": today}, {"_id": 0})
+    if doc:
+        return doc
+    # Create snapshot
+    goal_key = goal if goal in DAILY_PATH_TEMPLATES else "casual"
+    tasks = DAILY_PATH_TEMPLATES[goal_key]
+    metrics_doc = await db.user_metrics.find_one({"user_id": user_id}, {"_id": 0}) or {}
+    baseline = {t["metric"]: int(metrics_doc.get(t["metric"], 0)) for t in tasks}
+    doc = {
+        "user_id": user_id,
+        "date": today,
+        "goal_key": goal_key,
+        "task_keys": [t["key"] for t in tasks],
+        "baseline": baseline,
+        "claimed": False,
+    }
+    await db.daily_paths.insert_one(doc)
+    return {**doc, "_id": None} if "_id" in doc else doc
+
+
+async def _daily_path_state(user_id: str, goal: Optional[str]) -> dict:
+    doc = await _daily_path_doc(user_id, goal)
+    # Re-read in case insert added _id to our local copy
+    doc = await db.daily_paths.find_one({"user_id": user_id, "date": doc["date"]}, {"_id": 0})
+    goal_key = doc.get("goal_key", "casual")
+    tasks_cfg = DAILY_PATH_TEMPLATES.get(goal_key, DAILY_PATH_TEMPLATES["casual"])
+    metrics_doc = await db.user_metrics.find_one({"user_id": user_id}, {"_id": 0}) or {}
+    baseline = doc.get("baseline", {})
+
+    tasks = []
+    for t in tasks_cfg:
+        current = int(metrics_doc.get(t["metric"], 0))
+        base = int(baseline.get(t["metric"], 0))
+        progress = max(0, current - base)
+        done = progress >= t["target"]
+        tasks.append({
+            "key": t["key"], "title": t["title"], "metric": t["metric"],
+            "target": t["target"], "progress": min(progress, t["target"]),
+            "done": done, "to": t["to"], "icon": t["icon"],
+        })
+
+    completed = all(t["done"] for t in tasks)
+    return {
+        "date": doc["date"],
+        "goal_key": goal_key,
+        "tasks": tasks,
+        "tasks_done": sum(1 for t in tasks if t["done"]),
+        "tasks_total": len(tasks),
+        "completed": completed,
+        "claimed": bool(doc.get("claimed")),
+        "reward_xp": DAILY_PATH_REWARD_XP,
+    }
+
+
+@api_router.get("/daily-path")
+async def daily_path_get(request: Request,
+                         session_token: Optional[str] = Cookie(None),
+                         authorization: Optional[str] = Header(None)):
+    user = await get_current_user(request, session_token, authorization)
+    return await _daily_path_state(user.user_id, user.goal)
+
+
+@api_router.post("/daily-path/claim")
+async def daily_path_claim(request: Request,
+                           session_token: Optional[str] = Cookie(None),
+                           authorization: Optional[str] = Header(None)):
+    user = await get_current_user(request, session_token, authorization)
+    state = await _daily_path_state(user.user_id, user.goal)
+    if not state["completed"]:
+        raise HTTPException(status_code=400, detail="Daily path not yet completed")
+    if state["claimed"]:
+        return {"already_claimed": True, "xp_awarded": 0}
+    today = date.today().isoformat()
+    await db.daily_paths.update_one(
+        {"user_id": user.user_id, "date": today},
+        {"$set": {"claimed": True, "claimed_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    await update_streak_and_xp(user.user_id, DAILY_PATH_REWARD_XP)
+    return {"already_claimed": False, "xp_awarded": DAILY_PATH_REWARD_XP}
+
+
 # ---------- Referral system ----------
 REFERRER_REWARD = 100  # XP for referrer when invitee redeems
 INVITEE_REWARD = 50    # XP bonus for invitee on signup with code
