@@ -50,7 +50,7 @@ export default function ShareStreakModal({ open, onClose }) {
     roundRect(ctx, 80, 80, 360, 80, 40); ctx.fill();
     ctx.fillStyle = "#ffffff";
     ctx.font = "900 36px Nunito, sans-serif";
-    ctx.fillText("🎓 English Coach", 110, 132);
+    ctx.fillText("FluentPro", 110, 132);
 
     // big streak number
     ctx.fillStyle = "#ffffff";
@@ -94,7 +94,7 @@ export default function ShareStreakModal({ open, onClose }) {
     if (!blob) return;
     const file = new File([blob], `streak-${data.streak}.png`, { type: "image/png" });
     const shareData = {
-      title: "My English Coach streak",
+      title: "My FluentPro streak",
       text: data.share_text,
       files: [file],
     };
@@ -142,7 +142,7 @@ export default function ShareStreakModal({ open, onClose }) {
         <div ref={cardRef} className="mt-4 aspect-square w-full overflow-hidden rounded-2xl text-white" style={{ background: themes[theme].bg }}>
           <div className="flex h-full flex-col p-5">
             <div className="inline-flex w-fit items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-bold">
-              🎓 English Coach
+              FluentPro
             </div>
             <div className="mt-2 text-sm font-bold text-white/80">{data.name?.split(" ")[0] || "Learner"}'s English journey</div>
             <div className="mt-auto text-center">

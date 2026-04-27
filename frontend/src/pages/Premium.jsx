@@ -193,7 +193,7 @@ function CheckoutModal({ onClose, onConfirm, paying }) {
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-amber-600">
-            <Crown weight="fill" /><span className="font-bold">English Coach Premium</span>
+            <Crown weight="fill" /><span className="font-bold">FluentPro Premium</span>
           </div>
           <button onClick={onClose} aria-label="Close" className="rounded-lg p-1 text-slate-400 hover:bg-slate-100"><X /></button>
         </div>

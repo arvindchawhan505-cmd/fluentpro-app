@@ -762,7 +762,7 @@ async def share_streak(request: Request,
         "level": user.level,
         "completed_lessons": len(user.completed_lesson_ids or []),
         "share_text": (
-            f"🔥 I just hit a {user.streak}-day English streak on English Coach! "
+            f"🔥 I just hit a {user.streak}-day English streak on FluentPro! "
             f"{user.xp} XP and counting. Join me — your AI English coach is free to start."
         ),
     }
@@ -770,7 +770,7 @@ async def share_streak(request: Request,
 
 @api_router.get("/")
 async def root():
-    return {"message": "English Coach API", "status": "ok"}
+    return {"message": "FluentPro API", "status": "ok"}
 
 
 app.include_router(api_router)

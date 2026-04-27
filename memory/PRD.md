@@ -1,4 +1,4 @@
-# English Coach — PRD
+# FluentPro — PRD (formerly "English Coach")
 
 ## Original Problem Statement
 > Welcome to the English Coach
@@ -63,6 +63,14 @@
 - Backend iteration 1: 18/18 endpoints (100%)
 - Backend iteration 2: 15/15 premium + share + gating tests (100%)
 - Frontend: smoke screenshots — landing, dashboard (with share + premium CTAs), premium page all rendering correctly
+
+### Branding (added 2026-04-27)
+- **App renamed to "FluentPro"** across all surfaces
+- Browser tab title: `FluentPro - Speak English Confidently`
+- Custom SVG logo (`/logo.svg`) + favicon (`/favicon.svg`) — speech-bubble + sparkle in blue→indigo→violet gradient
+- New shared `<Logo>` component used in AppShell + Landing
+- Color theme refresh: brand CTAs and primary surfaces now use `from-blue-500 to-violet-500` gradient (replaced sky-400 single-tone). Active nav, Continue button, progress bar, FluentPro wordmark all gradient
+- Backend root message + streak share text updated to "FluentPro"
 
 ## Backlog / P1
 - [ ] Word streak audio drills (per-word phoneme-level scoring)

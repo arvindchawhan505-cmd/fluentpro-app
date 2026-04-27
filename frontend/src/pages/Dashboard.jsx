@@ -10,7 +10,7 @@ import {
 import ShareStreakModal from "@/components/ShareStreakModal";
 
 const quickActions = [
-  { to: "/conversation", title: "Chat with Coach", subtitle: "Practice real conversations", icon: ChatsCircle, color: "from-sky-400 to-sky-500", testId: "quick-conversation" },
+  { to: "/conversation", title: "Chat with Coach", subtitle: "Practice real conversations", icon: ChatsCircle, color: "from-blue-500 to-violet-500", testId: "quick-conversation" },
   { to: "/pronunciation", title: "Pronunciation", subtitle: "Record and get scored", icon: Microphone, color: "from-rose-400 to-rose-500", testId: "quick-pronunciation" },
   { to: "/vocabulary", title: "Vocabulary", subtitle: "5 new words today", icon: BookBookmark, color: "from-amber-400 to-amber-500", testId: "quick-vocabulary" },
   { to: "/writing", title: "Writing feedback", subtitle: "Get essay scores", icon: PencilSimpleLine, color: "from-green-400 to-green-500", testId: "quick-writing" },
@@ -39,8 +39,8 @@ export default function Dashboard() {
         animate={{ opacity: 1, y: 0 }}
         className="grid grid-cols-1 gap-4 md:grid-cols-12"
       >
-        <div className="md:col-span-8 rounded-3xl border-2 border-slate-100 bg-gradient-to-br from-sky-50 via-white to-amber-50 p-6 md:p-8">
-          <div className="text-sm font-bold uppercase tracking-wider text-sky-600">Welcome back</div>
+        <div className="md:col-span-8 rounded-3xl border-2 border-slate-100 bg-gradient-to-br from-blue-50 via-white to-violet-50 p-6 md:p-8">
+          <div className="text-sm font-bold uppercase tracking-wider text-indigo-600">Welcome back</div>
           <h1 className="mt-1 text-3xl font-extrabold tracking-tight text-slate-900 md:text-4xl" style={{ fontFamily: "Nunito, sans-serif" }}>
             Hi, {user?.name?.split(" ")[0]} 👋
           </h1>
@@ -51,7 +51,7 @@ export default function Dashboard() {
             <Link
               to={`/lessons/${nextLesson.id}`}
               data-testid="continue-next-lesson-button"
-              className="mt-5 inline-flex items-center gap-2 rounded-xl border-b-4 border-sky-600 bg-sky-400 px-5 py-3 font-bold text-white transition hover:bg-sky-500 active:translate-y-1 active:border-b-0"
+              className="mt-5 inline-flex items-center gap-2 rounded-xl border-b-4 border-indigo-700 bg-gradient-to-r from-blue-500 to-violet-500 px-5 py-3 font-bold text-white transition hover:from-blue-600 hover:to-violet-600 active:translate-y-1 active:border-b-0"
             >
               Continue: {nextLesson.title}
               <ArrowRight weight="bold" />
@@ -111,7 +111,7 @@ export default function Dashboard() {
           <h2 className="text-xl font-bold text-slate-800" style={{ fontFamily: "Nunito, sans-serif" }}>
             Your learning path
           </h2>
-          <Link to="/lessons" className="text-sm font-bold text-sky-600 hover:underline" data-testid="see-all-lessons-link">
+          <Link to="/lessons" className="text-sm font-bold text-indigo-600 hover:underline" data-testid="see-all-lessons-link">
             See all →
           </Link>
         </div>
@@ -123,7 +123,7 @@ export default function Dashboard() {
             </div>
             <div className="h-4 w-full overflow-hidden rounded-full bg-slate-100">
               <div
-                className="relative h-full rounded-full bg-sky-400 transition-all after:absolute after:left-1 after:right-1 after:top-1 after:h-1.5 after:rounded-full after:bg-white/30"
+                className="relative h-full rounded-full bg-gradient-to-r from-blue-500 to-violet-500 transition-all after:absolute after:left-1 after:right-1 after:top-1 after:h-1.5 after:rounded-full after:bg-white/30"
                 style={{ width: `${progress.progress_pct}%` }}
               />
             </div>
@@ -138,7 +138,7 @@ export default function Dashboard() {
               className="group flex items-center justify-between rounded-2xl border-2 border-slate-100 bg-white p-4 transition hover:border-sky-200"
             >
               <div className="flex items-center gap-3">
-                <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${l.completed ? "bg-green-100 text-green-600" : l.locked ? "bg-slate-100 text-slate-400" : "bg-sky-100 text-sky-600"}`}>
+                <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${l.completed ? "bg-green-100 text-green-600" : l.locked ? "bg-slate-100 text-slate-400" : "bg-gradient-to-br from-blue-100 to-violet-100 text-indigo-600"}`}>
                   <Notebook weight="duotone" size={22} />
                 </div>
                 <div>
@@ -148,7 +148,7 @@ export default function Dashboard() {
                   <div className="font-extrabold text-slate-900">{l.title}</div>
                 </div>
               </div>
-              {l.locked ? <Crown weight="fill" className="text-amber-500" /> : <ArrowRight weight="bold" className="text-slate-400 transition group-hover:text-sky-500" />}
+              {l.locked ? <Crown weight="fill" className="text-amber-500" /> : <ArrowRight weight="bold" className="text-slate-400 transition group-hover:text-indigo-500" />}
             </Link>
           ))}
         </div>

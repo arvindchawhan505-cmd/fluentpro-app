@@ -5,6 +5,7 @@ import {
   GraduationCap, ChatsCircle, BookBookmark, Microphone, PencilSimpleLine,
   Notebook, User, SignOut, Flame, Star, Crown,
 } from "@phosphor-icons/react";
+import Logo from "@/components/Logo";
 
 const nav = [
   { to: "/dashboard", label: "Dashboard", icon: GraduationCap, testId: "nav-dashboard" },
@@ -26,12 +27,7 @@ export default function AppShell({ children }) {
       <header className="sticky top-0 z-40 border-b-2 border-slate-100 bg-white/80 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 md:px-8">
           <Link to="/dashboard" className="flex items-center gap-2" data-testid="brand-link">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-400 text-white shadow-[inset_0_-3px_0_rgba(0,0,0,0.15)]">
-              <GraduationCap weight="duotone" size={22} />
-            </div>
-            <span className="font-extrabold tracking-tight text-slate-900" style={{ fontFamily: "Nunito, sans-serif" }}>
-              English Coach
-            </span>
+            <Logo size={36} />
             {user?.is_premium && (
               <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700" data-testid="premium-badge">
                 <Crown weight="fill" size={10} /> Premium
@@ -85,7 +81,7 @@ export default function AppShell({ children }) {
               className={({ isActive }) =>
                 `flex items-center gap-3 rounded-xl px-4 py-3 font-bold transition ${
                   isActive
-                    ? "bg-sky-400 text-white shadow-[inset_0_-3px_0_rgba(0,0,0,0.15)]"
+                    ? "bg-gradient-to-r from-blue-500 to-violet-500 text-white shadow-[inset_0_-3px_0_rgba(0,0,0,0.15)]"
                     : "text-slate-600 hover:bg-white hover:text-slate-900"
                 }`
               }
@@ -107,7 +103,7 @@ export default function AppShell({ children }) {
             data-testid={testId + "-mobile"}
             className={({ isActive }) =>
               `flex flex-col items-center gap-0.5 rounded-lg px-3 py-1 text-xs font-bold ${
-                isActive ? "text-sky-600" : "text-slate-500"
+                isActive ? "text-indigo-600" : "text-slate-500"
               }`
             }
           >
