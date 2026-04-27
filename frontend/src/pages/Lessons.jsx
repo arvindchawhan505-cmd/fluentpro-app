@@ -1,0 +1,71 @@
+import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { api } from "@/lib/api";
+import { Notebook, CheckCircle, ArrowRight } from "@phosphor-icons/react";
+
+const LEVELS = ["Beginner", "Intermediate", "Advanced"];
+
+export default function Lessons() {
+  const [lessons, setLessons] = useState([]);
+  const [filter, setFilter] = useState("all");
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await api.get("/lessons");
+      setLessons(data.lessons);
+    })();
+  }, []);
+
+  const filtered = filter === "all" ? lessons : lessons.filter((l) => l.level === filter);
+
+  return (
+    <div className="space-y-5 pb-24 md:pb-8" data-testid="lessons-page">
+      <header className="flex items-center gap-3">
+        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-100 text-violet-600">
+          <Notebook weight="duotone" size={24} />
+        </div>
+        <div>
+          <h1 className="text-2xl font-extrabold text-slate-900" style={{ fontFamily: "Nunito, sans-serif" }}>Lessons</h1>
+          <p className="font-medium text-slate-600">Structured learning from Beginner to Advanced.</p>
+        </div>
+      </header>
+
+      <div className="flex flex-wrap gap-2">
+        {["all", ...LEVELS].map((lvl) => (
+          <button key={lvl} data-testid={`filter-${lvl}`} onClick={() => setFilter(lvl)}
+            className={`rounded-full border-2 px-4 py-1.5 text-sm font-bold capitalize ${filter === lvl ? "border-violet-500 bg-violet-400 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-violet-200"}`}>
+            {lvl}
+          </button>
+        ))}
+      </div>
+
+      <div className="space-y-6">
+        {(filter === "all" ? LEVELS : [filter]).map((lvl) => {
+          const group = lessons.filter((l) => l.level === lvl);
+          if (!group.length) return null;
+          return (
+            <div key={lvl}>
+              <h2 className="mb-3 text-lg font-bold text-slate-700" style={{ fontFamily: "Nunito, sans-serif" }}>{lvl}</h2>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                {group.map((l) => (
+                  <Link key={l.id} to={`/lessons/${l.id}`} data-testid={`lessons-list-${l.id}`}
+                    className="group flex items-start gap-4 rounded-3xl border-2 border-slate-100 bg-white p-5 transition hover:-translate-y-1 hover:border-violet-200 hover:shadow-md">
+                    <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${l.completed ? "bg-green-100 text-green-600" : "bg-violet-100 text-violet-600"}`}>
+                      {l.completed ? <CheckCircle weight="duotone" size={22} /> : <Notebook weight="duotone" size={22} />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-extrabold text-slate-900">{l.title}</div>
+                      <div className="mt-1 text-sm font-medium text-slate-500">{l.description}</div>
+                    </div>
+                    <ArrowRight weight="bold" className="mt-2 text-slate-400 group-hover:text-violet-500" />
+                  </Link>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+        {filtered.length === 0 && <div className="rounded-3xl border-2 border-slate-100 bg-white p-10 text-center font-bold text-slate-500">Loading…</div>}
+      </div>
+    </div>
+  );
+}

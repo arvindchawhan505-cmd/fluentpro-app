@@ -1,54 +1,59 @@
-import { useEffect } from "react";
+import React from "react";
 import "@/App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import axios from "axios";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { AuthProvider } from "@/context/AuthContext";
+import AuthCallback from "@/pages/AuthCallback";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import AppShell from "@/components/AppShell";
+import Landing from "@/pages/Landing";
+import Dashboard from "@/pages/Dashboard";
+import Conversation from "@/pages/Conversation";
+import Grammar from "@/pages/Grammar";
+import Vocabulary from "@/pages/Vocabulary";
+import Pronunciation from "@/pages/Pronunciation";
+import Writing from "@/pages/Writing";
+import Lessons from "@/pages/Lessons";
+import LessonDetail from "@/pages/LessonDetail";
+import Profile from "@/pages/Profile";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
-
-const Home = () => {
-  const helloWorldApi = async () => {
-    try {
-      const response = await axios.get(`${API}/`);
-      console.log(response.data.message);
-    } catch (e) {
-      console.error(e, `errored out requesting / api`);
-    }
-  };
-
-  useEffect(() => {
-    helloWorldApi();
-  }, []);
-
+function Protected({ children }) {
   return (
-    <div>
-      <header className="App-header">
-        <a
-          className="App-link"
-          href="https://emergent.sh"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img src="https://avatars.githubusercontent.com/in/1201222?s=120&u=2686cf91179bbafbc7a71bfbc43004cf9ae1acea&v=4" />
-        </a>
-        <p className="mt-5">Building something incredible ~!</p>
-      </header>
-    </div>
+    <ProtectedRoute>
+      <AppShell>{children}</AppShell>
+    </ProtectedRoute>
   );
-};
+}
 
-function App() {
+function AppRouter() {
+  const location = useLocation();
+  // Synchronous check for OAuth callback to avoid race conditions
+  if (location.hash?.includes("session_id=")) {
+    return <AuthCallback />;
+  }
+  return (
+    <Routes>
+      <Route path="/" element={<Landing />} />
+      <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
+      <Route path="/lessons" element={<Protected><Lessons /></Protected>} />
+      <Route path="/lessons/:id" element={<Protected><LessonDetail /></Protected>} />
+      <Route path="/conversation" element={<Protected><Conversation /></Protected>} />
+      <Route path="/grammar" element={<Protected><Grammar /></Protected>} />
+      <Route path="/vocabulary" element={<Protected><Vocabulary /></Protected>} />
+      <Route path="/pronunciation" element={<Protected><Pronunciation /></Protected>} />
+      <Route path="/writing" element={<Protected><Writing /></Protected>} />
+      <Route path="/profile" element={<Protected><Profile /></Protected>} />
+    </Routes>
+  );
+}
+
+export default function App() {
   return (
     <div className="App">
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Home />}>
-            <Route index element={<Home />} />
-          </Route>
-        </Routes>
+        <AuthProvider>
+          <AppRouter />
+        </AuthProvider>
       </BrowserRouter>
     </div>
   );
 }
-
-export default App;

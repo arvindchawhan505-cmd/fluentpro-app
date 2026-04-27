@@ -1,0 +1,39 @@
+{
+  "summary": "Backend-only testing for English Coach app. All 18 pytest tests across 17 endpoints PASSED on the public REACT_APP_BACKEND_URL. Real LLM/TTS calls used (no mocks). Skipped /api/pronunciation/check (multipart audio) per request. Test session re-seeded after logout test.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_english_coach_api.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is ~630 lines - acceptable for now but if more endpoints added, consider splitting into routers (auth, conversation, lessons, vocab) for maintainability.",
+    "vocabulary_daily caches by (user_id, date, level) but vocabulary_quiz does not cache. Repeated quiz requests will keep calling the LLM. Consider caching or rate-limiting.",
+    "lesson_content cache key is only lesson_id (not user-level) - this is fine since lessons are static, but no cache-invalidation strategy if lessons are edited.",
+    "set_cookie uses samesite='none' + secure=True - correct for cross-site cookies, but ensure frontend always uses HTTPS in dev.",
+    "_parse_json may break on responses with extra prose around JSON. Consider using a more robust JSON extraction (regex for first { ... } block).",
+    "No rate limiting on LLM endpoints - a malicious user with valid session could exhaust EMERGENT_LLM_KEY quota.",
+    "update_streak_and_xp is called per request but xp_gained is hardcoded; consider centralizing reward config."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_english_coach_api.py"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "not tested (backend-only request)"
+  },
+  "test_credentials": "Bearer token: test_session_english_coach_v1 (re-seeded after logout test, expires in 7 days). User: test-user-english-coach / test.english.coach@example.com / level Intermediate.",
+  "seed_data_creation": "Re-seeded user_sessions row after final logout test. Restored user level to Intermediate.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All 17 in-scope endpoints verified end-to-end via /app/backend/tests/test_english_coach_api.py (18 pytest cases). Auth uses Bearer test_session_english_coach_v1. /api/pronunciation/check (multipart) was intentionally skipped — needs a sample webm/mp3 file to test. To run: pytest /app/backend/tests/test_english_coach_api.py -v. After running, the logout test invalidates the session — re-seed via the script in /app/memory/test_credentials.md or use the inline mongosh command. LLM calls take 5-30s each; full suite runs in ~35s.",
+  "rca of the issue": "No issues found."
+}
