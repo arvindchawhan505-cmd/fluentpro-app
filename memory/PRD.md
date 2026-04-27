@@ -72,6 +72,18 @@
 - Color theme refresh: brand CTAs and primary surfaces now use `from-blue-500 to-violet-500` gradient (replaced sky-400 single-tone). Active nav, Continue button, progress bar, FluentPro wordmark all gradient
 - Backend root message + streak share text updated to "FluentPro"
 
+### Goal-based onboarding & polish (added 2026-04-27)
+- **First-visit onboarding modal** asks for goal: Job interview / Travel / IELTS / Casual speaking. Persists `user.goal` in MongoDB.
+- Goal **personalizes Coach Ada's system prompt** (custom persona per goal in `GOALS` dict + `build_system_for_user()`).
+- Goal **reorders/recommends lessons** — `/api/lessons` returns `recommended` flag per lesson; UI shows a gradient "For your goal" badge.
+- New backend endpoints: `GET /api/profile/goals`, `POST /api/profile/goal`.
+- Profile page: new gradient hero, level pills with gradient on active, **goal selector** with 4 colorful gradient cards.
+- Lessons page: header icon now uses violet→fuchsia gradient; recommended cards have soft blue→violet gradient background and a "For your goal" badge.
+- **Animated streak flame** (`<StreakFlame>` component): when streak ≥ 7 days, the flame icon gets an orange→rose glow, ping animation, and "On fire" label on Streak stats.
+
+### Test results
+- Backend iter-1: 18/18 ✅ · iter-2: 15/15 ✅ · iter-3 (goal onboarding): 12/12 ✅
+
 ## Backlog / P1
 - [ ] Word streak audio drills (per-word phoneme-level scoring)
 - [ ] Lesson series unlocking (gate i/a behind earlier completions)
