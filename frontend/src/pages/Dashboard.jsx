@@ -9,6 +9,7 @@ import {
 } from "@phosphor-icons/react";
 import StreakFlame from "@/components/StreakFlame";
 import ShareStreakModal from "@/components/ShareStreakModal";
+import DailyCheckinCard from "@/components/DailyCheckinCard";
 
 const quickActions = [
   { to: "/conversation", title: "Chat with Coach", subtitle: "Practice real conversations", icon: ChatsCircle, color: "from-blue-500 to-violet-500", testId: "quick-conversation" },
@@ -84,6 +85,8 @@ export default function Dashboard() {
           <Stat icon={Trophy} label="Level" value={progress?.level ?? "—"} color="text-violet-600 bg-violet-50" testId="stat-level" />
         </div>
       </motion.section>
+
+      <DailyCheckinCard />
 
       <section>
         <h2 className="mb-4 text-xl font-bold text-slate-800" style={{ fontFamily: "Nunito, sans-serif" }}>

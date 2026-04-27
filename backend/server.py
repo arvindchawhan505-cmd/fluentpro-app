@@ -753,6 +753,127 @@ async def list_goals():
     return {"goals": [{"key": k, "label": v["label"]} for k, v in GOALS.items()]}
 
 
+# ---------- Daily Goal Check-in ----------
+CHECKIN_SEEDS = {
+    "job_interview": [
+        "Describe a recent work challenge and how you handled it (3 sentences).",
+        "Tell me about a time you led a team or initiative.",
+        "Walk me through your biggest professional accomplishment this year.",
+        "Why are you a great fit for your dream role? Sell yourself in 3 sentences.",
+        "Describe a time you received critical feedback and what you learned.",
+    ],
+    "travel": [
+        "Describe the best meal you've ever had while traveling.",
+        "Pretend you're at an airport and your flight is delayed — call hotel reception to extend your stay.",
+        "What's a place you'd recommend a first-time visitor see in your city?",
+        "Tell me about a time you got lost while traveling. What did you do?",
+        "If money were no object, where would you fly tomorrow and why?",
+    ],
+    "ielts": [
+        "Argue: Should universities offer online-only degrees? Give 3 reasons.",
+        "Describe a piece of technology that changed your daily life. Use 'in addition' and 'consequently'.",
+        "Compare living in a big city vs. a small town. Use complex sentences.",
+        "Some people say homework is essential; others disagree. Take a side and defend it.",
+        "Describe a memorable book or film. What makes it stand out?",
+    ],
+    "casual": [
+        "What's the highlight of your day so far?",
+        "Tell me one small thing you're grateful for today.",
+        "If you could have any superpower for one day, what would it be?",
+        "What's a song or playlist you've had on repeat lately?",
+        "Describe your perfect lazy weekend.",
+    ],
+}
+
+
+def _checkin_prompt_for(user: "User") -> str:
+    today = date.today().isoformat()
+    goal = user.goal or "casual"
+    seeds = CHECKIN_SEEDS.get(goal, CHECKIN_SEEDS["casual"])
+    # Deterministic per user/day
+    h = abs(hash(f"{user.user_id}_{today}")) % len(seeds)
+    return seeds[h]
+
+
+@api_router.get("/checkin/today")
+async def checkin_today(request: Request,
+                        session_token: Optional[str] = Cookie(None),
+                        authorization: Optional[str] = Header(None)):
+    user = await get_current_user(request, session_token, authorization)
+    today = date.today().isoformat()
+    doc = await db.checkins.find_one(
+        {"user_id": user.user_id, "date": today}, {"_id": 0}
+    )
+    prompt = doc["prompt"] if doc else _checkin_prompt_for(user)
+    return {
+        "date": today,
+        "goal": user.goal,
+        "goal_label": GOALS.get(user.goal, {}).get("label") if user.goal else None,
+        "prompt": prompt,
+        "completed": bool(doc and doc.get("completed")),
+        "response": doc.get("response") if doc else None,
+        "feedback": doc.get("feedback") if doc else None,
+    }
+
+
+class CheckinResponseRequest(BaseModel):
+    response: str
+
+
+@api_router.post("/checkin/respond")
+async def checkin_respond(body: CheckinResponseRequest, request: Request,
+                          session_token: Optional[str] = Cookie(None),
+                          authorization: Optional[str] = Header(None)):
+    user = await get_current_user(request, session_token, authorization)
+    text = (body.response or "").strip()
+    if len(text) < 3:
+        raise HTTPException(status_code=400, detail="Response too short")
+
+    today = date.today().isoformat()
+    existing = await db.checkins.find_one({"user_id": user.user_id, "date": today}, {"_id": 0})
+    if existing and existing.get("completed"):
+        return {
+            "prompt": existing["prompt"],
+            "response": existing["response"],
+            "feedback": existing["feedback"],
+            "already_completed": True,
+        }
+    prompt = existing["prompt"] if existing else _checkin_prompt_for(user)
+
+    goal_label = GOALS.get(user.goal, {}).get("label") if user.goal else "casual English practice"
+    system = (
+        f"You are Coach Ada giving warm, concise feedback on a 60-second daily check-in for a learner whose goal is: {goal_label}. "
+        "Return ONLY valid JSON: {\"reply\": str (2-3 sentences, encouraging, gently corrects 1 grammar issue inline using →), "
+        "\"corrected\": str (cleaner version of learner's sentence), \"score\": int (0-100), \"highlight\": str (one specific thing they did well)}. No markdown."
+    )
+    chat = build_chat(f"checkin_{user.user_id}_{today}", system)
+    try:
+        resp = await chat.send_message(UserMessage(
+            text=f"Prompt: {prompt}\n\nLearner's response: {text}"
+        ))
+        feedback = _parse_json(resp)
+    except Exception as e:
+        logger.exception("checkin error")
+        raise HTTPException(status_code=500, detail=f"LLM error: {e}")
+
+    await db.checkins.update_one(
+        {"user_id": user.user_id, "date": today},
+        {"$set": {
+            "user_id": user.user_id,
+            "date": today,
+            "goal": user.goal,
+            "prompt": prompt,
+            "response": text,
+            "feedback": feedback,
+            "completed": True,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }},
+        upsert=True,
+    )
+    await update_streak_and_xp(user.user_id, 15)
+    return {"prompt": prompt, "response": text, "feedback": feedback, "already_completed": False}
+
+
 # ---------- Billing (MOCKED — no real Razorpay payment) ----------
 PREMIUM_PRICE_INR = 99
 
