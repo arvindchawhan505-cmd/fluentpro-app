@@ -3,7 +3,7 @@ import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import {
   GraduationCap, ChatsCircle, BookBookmark, Microphone, PencilSimpleLine,
-  Notebook, User, SignOut, Flame, Star,
+  Notebook, User, SignOut, Flame, Star, Crown,
 } from "@phosphor-icons/react";
 
 const nav = [
@@ -14,6 +14,7 @@ const nav = [
   { to: "/pronunciation", label: "Pronunciation", icon: Microphone, testId: "nav-pronunciation" },
   { to: "/writing", label: "Writing", icon: PencilSimpleLine, testId: "nav-writing" },
   { to: "/grammar", label: "Grammar", icon: Notebook, testId: "nav-grammar" },
+  { to: "/premium", label: "Premium", icon: Crown, testId: "nav-premium" },
 ];
 
 export default function AppShell({ children }) {
@@ -31,6 +32,11 @@ export default function AppShell({ children }) {
             <span className="font-extrabold tracking-tight text-slate-900" style={{ fontFamily: "Nunito, sans-serif" }}>
               English Coach
             </span>
+            {user?.is_premium && (
+              <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700" data-testid="premium-badge">
+                <Crown weight="fill" size={10} /> Premium
+              </span>
+            )}
           </Link>
 
           <div className="flex items-center gap-3">

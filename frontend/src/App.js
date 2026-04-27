@@ -5,6 +5,7 @@ import { AuthProvider } from "@/context/AuthContext";
 import AuthCallback from "@/pages/AuthCallback";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/AppShell";
+import PremiumPrompt from "@/components/PremiumPrompt";
 import Landing from "@/pages/Landing";
 import Dashboard from "@/pages/Dashboard";
 import Conversation from "@/pages/Conversation";
@@ -15,11 +16,13 @@ import Writing from "@/pages/Writing";
 import Lessons from "@/pages/Lessons";
 import LessonDetail from "@/pages/LessonDetail";
 import Profile from "@/pages/Profile";
+import Premium from "@/pages/Premium";
 
 function Protected({ children }) {
   return (
     <ProtectedRoute>
       <AppShell>{children}</AppShell>
+      <PremiumPrompt />
     </ProtectedRoute>
   );
 }
@@ -42,6 +45,7 @@ function AppRouter() {
       <Route path="/pronunciation" element={<Protected><Pronunciation /></Protected>} />
       <Route path="/writing" element={<Protected><Writing /></Protected>} />
       <Route path="/profile" element={<Protected><Profile /></Protected>} />
+      <Route path="/premium" element={<Protected><Premium /></Protected>} />
     </Routes>
   );
 }

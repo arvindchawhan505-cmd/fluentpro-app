@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
-import { Notebook, CheckCircle, ArrowRight } from "@phosphor-icons/react";
+import { Notebook, CheckCircle, ArrowRight, Crown } from "@phosphor-icons/react";
 
 const LEVELS = ["Beginner", "Intermediate", "Advanced"];
 
@@ -48,16 +48,19 @@ export default function Lessons() {
               <h2 className="mb-3 text-lg font-bold text-slate-700" style={{ fontFamily: "Nunito, sans-serif" }}>{lvl}</h2>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 {group.map((l) => (
-                  <Link key={l.id} to={`/lessons/${l.id}`} data-testid={`lessons-list-${l.id}`}
-                    className="group flex items-start gap-4 rounded-3xl border-2 border-slate-100 bg-white p-5 transition hover:-translate-y-1 hover:border-violet-200 hover:shadow-md">
-                    <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${l.completed ? "bg-green-100 text-green-600" : "bg-violet-100 text-violet-600"}`}>
-                      {l.completed ? <CheckCircle weight="duotone" size={22} /> : <Notebook weight="duotone" size={22} />}
+                  <Link key={l.id} to={l.locked ? "/premium" : `/lessons/${l.id}`} data-testid={`lessons-list-${l.id}`}
+                    className={`group flex items-start gap-4 rounded-3xl border-2 p-5 transition hover:-translate-y-1 hover:shadow-md ${l.locked ? "border-slate-100 bg-slate-50 hover:border-amber-200" : "border-slate-100 bg-white hover:border-violet-200"}`}>
+                    <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${l.completed ? "bg-green-100 text-green-600" : l.locked ? "bg-amber-100 text-amber-500" : "bg-violet-100 text-violet-600"}`}>
+                      {l.completed ? <CheckCircle weight="duotone" size={22} /> : l.locked ? <Crown weight="fill" size={20} /> : <Notebook weight="duotone" size={22} />}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="font-extrabold text-slate-900">{l.title}</div>
+                      <div className="flex items-center gap-2">
+                        <div className="font-extrabold text-slate-900">{l.title}</div>
+                        {l.locked && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700">Premium</span>}
+                      </div>
                       <div className="mt-1 text-sm font-medium text-slate-500">{l.description}</div>
                     </div>
-                    <ArrowRight weight="bold" className="mt-2 text-slate-400 group-hover:text-violet-500" />
+                    <ArrowRight weight="bold" className={`mt-2 ${l.locked ? "text-amber-400" : "text-slate-400 group-hover:text-violet-500"}`} />
                   </Link>
                 ))}
               </div>

@@ -1,0 +1,40 @@
+{
+  "summary": "Backend-only iteration 2 testing of new Premium tier (MOCKED Razorpay) + shareable streak cards + free-tier gating. 15 pytest cases in /app/backend/tests/test_premium_and_share.py all PASSED on public REACT_APP_BACKEND_URL (19s). Covered billing/status (non-premium + premium), grammar free-limit enforcement (3/day -> 4th returns 402 free_limit_reached), lessons list locked flag, intermediate lesson 402 premium_required for free users, /api/billing/upgrade MOCK granting premium + premium_until, post-upgrade lesson access, premium bypassing grammar limit, /api/share/streak fields, /api/billing/cancel downgrades, and regression on /api/auth/me, /api/lessons/b1, /api/vocabulary/daily, /api/progress, /api/conversation. Test user left as non-premium with empty usage_logs (verified in DB) so manual testing isn't blocked.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_premium_and_share.py",
+    "/app/backend/tests/test_english_coach_api.py",
+    "/app/test_reports/pytest/pytest_iter2.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "check_and_increment_usage() in server.py still increments usage for premium users (fine for analytics) but the code path is duplicated with the non-premium upsert — could be collapsed into a single upsert for cleanliness.",
+    "billing_upgrade endpoint has no idempotency key and no amount/signature verification — acceptable for MOCK but leave a clear TODO before swapping in real Razorpay verify_payment_signature.",
+    "is_user_premium() silently returns False on any parse error of premium_until — consider logging to aid future debugging if a bad timestamp ever sneaks in.",
+    "FREE_LIMITS is hardcoded; consider moving to env/config so non-dev environments can A/B different quotas without a redeploy.",
+    "server.py is now ~790 lines — past comfortable single-file size. Splitting into routers (auth, billing, lessons, llm) is recommended before adding more features.",
+    "/api/billing/cancel does not record a cancellation event in db.payments — useful for audit/churn analysis.",
+    "No authorization on /api/billing/* beyond bearer session — fine today, but if admin-side refunds are ever added, enforce role checks."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_premium_and_share.py"
+  ],
+  "success_rate": {
+    "backend": "100% (15/15)",
+    "frontend": "not tested (backend-only request)"
+  },
+  "test_credentials": "Bearer test_session_english_coach_v1 (still valid, expires 2026-05-04). User: test-user-english-coach. Left non-premium with empty usage_logs after suite.",
+  "seed_data_creation": "Reset usage_logs for test user pre/post each suite run. Flipped is_premium false->true->false via upgrade/cancel. Final state: non-premium, 0 usage_logs (verified).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Two test files now exist: test_english_coach_api.py (original 17 endpoints) and test_premium_and_share.py (new premium + share + gating). Run either with: pytest /app/backend/tests/<file> -v. Both reset critical state before running. If session token dies, re-seed per /app/memory/test_credentials.md. The MOCK upgrade endpoint needs no payment — it flips is_premium=true for 30 days. To fully reset the test user: mongosh --eval \"use('test_database'); db.usage_logs.deleteMany({user_id:'test-user-english-coach'}); db.users.updateOne({user_id:'test-user-english-coach'},{$set:{is_premium:false,premium_until:null}});\"",
+  "rca of the issue": "No issues found. All new premium + share endpoints and free-tier gating behave exactly as specified."
+}

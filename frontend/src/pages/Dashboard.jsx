@@ -5,8 +5,9 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import {
   Flame, Star, Trophy, ChatsCircle, Microphone, PencilSimpleLine,
-  BookBookmark, Notebook, ArrowRight,
+  BookBookmark, Notebook, ArrowRight, ShareNetwork, Crown,
 } from "@phosphor-icons/react";
+import ShareStreakModal from "@/components/ShareStreakModal";
 
 const quickActions = [
   { to: "/conversation", title: "Chat with Coach", subtitle: "Practice real conversations", icon: ChatsCircle, color: "from-sky-400 to-sky-500", testId: "quick-conversation" },
@@ -19,6 +20,7 @@ export default function Dashboard() {
   const { user } = useAuth();
   const [progress, setProgress] = useState(null);
   const [lessons, setLessons] = useState([]);
+  const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -28,7 +30,7 @@ export default function Dashboard() {
     })();
   }, []);
 
-  const nextLesson = lessons.find((l) => !l.completed);
+  const nextLesson = lessons.find((l) => !l.completed && !l.locked) || lessons.find((l) => !l.completed);
 
   return (
     <div className="space-y-8 pb-24 md:pb-8" data-testid="dashboard-page">
@@ -55,6 +57,24 @@ export default function Dashboard() {
               <ArrowRight weight="bold" />
             </Link>
           )}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              onClick={() => setShareOpen(true)}
+              data-testid="share-streak-button"
+              className="inline-flex items-center gap-2 rounded-xl border-2 border-orange-200 bg-white px-4 py-2 font-bold text-orange-700 hover:border-orange-300"
+            >
+              <ShareNetwork weight="duotone" /> Share my streak
+            </button>
+            {!user?.is_premium && (
+              <Link
+                to="/premium"
+                data-testid="dashboard-go-premium-link"
+                className="inline-flex items-center gap-2 rounded-xl border-2 border-amber-200 bg-amber-50 px-4 py-2 font-bold text-amber-700 hover:border-amber-300"
+              >
+                <Crown weight="fill" /> Go Premium · ₹99/mo
+              </Link>
+            )}
+          </div>
         </div>
 
         <div className="md:col-span-4 grid grid-cols-3 gap-3 md:grid-cols-1">
@@ -118,19 +138,22 @@ export default function Dashboard() {
               className="group flex items-center justify-between rounded-2xl border-2 border-slate-100 bg-white p-4 transition hover:border-sky-200"
             >
               <div className="flex items-center gap-3">
-                <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${l.completed ? "bg-green-100 text-green-600" : "bg-sky-100 text-sky-600"}`}>
+                <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${l.completed ? "bg-green-100 text-green-600" : l.locked ? "bg-slate-100 text-slate-400" : "bg-sky-100 text-sky-600"}`}>
                   <Notebook weight="duotone" size={22} />
                 </div>
                 <div>
-                  <div className="text-xs font-bold uppercase tracking-wider text-slate-400">{l.level}</div>
+                  <div className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    {l.level} {l.locked && "· Premium"}
+                  </div>
                   <div className="font-extrabold text-slate-900">{l.title}</div>
                 </div>
               </div>
-              <ArrowRight weight="bold" className="text-slate-400 transition group-hover:text-sky-500" />
+              {l.locked ? <Crown weight="fill" className="text-amber-500" /> : <ArrowRight weight="bold" className="text-slate-400 transition group-hover:text-sky-500" />}
             </Link>
           ))}
         </div>
       </section>
+      <ShareStreakModal open={shareOpen} onClose={() => setShareOpen(false)} />
     </div>
   );
 }

@@ -45,6 +45,65 @@ class User(BaseModel):
     streak: int = 0
     last_active_date: Optional[str] = None
     completed_lesson_ids: List[str] = []
+    is_premium: bool = False
+    premium_until: Optional[str] = None
+
+
+# ---------- Free-tier limits ----------
+FREE_LIMITS = {
+    "conversation": 5,
+    "grammar": 3,
+    "writing": 3,
+    "pronunciation": 5,
+}
+
+
+def is_user_premium(user: "User") -> bool:
+    if not user.is_premium:
+        return False
+    if user.premium_until:
+        try:
+            until = datetime.fromisoformat(user.premium_until)
+            if until.tzinfo is None:
+                until = until.replace(tzinfo=timezone.utc)
+            if until < datetime.now(timezone.utc):
+                return False
+        except Exception:
+            return False
+    return True
+
+
+async def check_and_increment_usage(user_id: str, feature: str, is_premium: bool) -> int:
+    """Returns new usage count; raises HTTPException if free-tier limit exceeded."""
+    today = date.today().isoformat()
+    if is_premium:
+        await db.usage_logs.update_one(
+            {"user_id": user_id, "date": today, "feature": feature},
+            {"$inc": {"count": 1}, "$setOnInsert": {"user_id": user_id, "date": today, "feature": feature}},
+            upsert=True,
+        )
+        return 0
+    doc = await db.usage_logs.find_one(
+        {"user_id": user_id, "date": today, "feature": feature}, {"_id": 0}
+    )
+    current = doc.get("count", 0) if doc else 0
+    limit = FREE_LIMITS.get(feature, 9999)
+    if current >= limit:
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "code": "free_limit_reached",
+                "feature": feature,
+                "limit": limit,
+                "message": f"You've reached your free daily limit for {feature}. Upgrade to Premium for unlimited access.",
+            },
+        )
+    await db.usage_logs.update_one(
+        {"user_id": user_id, "date": today, "feature": feature},
+        {"$inc": {"count": 1}, "$setOnInsert": {"user_id": user_id, "date": today, "feature": feature}},
+        upsert=True,
+    )
+    return current + 1
 
 
 class ConversationRequest(BaseModel):
@@ -173,6 +232,8 @@ async def process_session(request: Request, response: Response):
             "streak": 0,
             "last_active_date": None,
             "completed_lesson_ids": [],
+            "is_premium": False,
+            "premium_until": None,
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
 
@@ -235,6 +296,7 @@ async def conversation(body: ConversationRequest, request: Request,
                        session_token: Optional[str] = Cookie(None),
                        authorization: Optional[str] = Header(None)):
     user = await get_current_user(request, session_token, authorization)
+    await check_and_increment_usage(user.user_id, "conversation", is_user_premium(user))
     scenario = body.scenario or "general"
     system_msg = SCENARIO_PROMPTS.get(scenario, SCENARIO_PROMPTS["general"])
     chat = build_chat(f"{user.user_id}_{body.session_id}", system_msg)
@@ -283,6 +345,7 @@ async def grammar_check(body: GrammarRequest, request: Request,
                         session_token: Optional[str] = Cookie(None),
                         authorization: Optional[str] = Header(None)):
     user = await get_current_user(request, session_token, authorization)
+    await check_and_increment_usage(user.user_id, "grammar", is_user_premium(user))
     system = (
         "You are an expert English grammar coach. Respond ONLY with valid JSON "
         "matching: {\"corrected\": str, \"issues\": [{\"original\": str, \"correction\": str, \"rule\": str, \"explanation\": str}], \"overall_feedback\": str, \"score\": int (0-100)}. "
@@ -304,6 +367,7 @@ async def writing_feedback(body: WritingRequest, request: Request,
                            session_token: Optional[str] = Cookie(None),
                            authorization: Optional[str] = Header(None)):
     user = await get_current_user(request, session_token, authorization)
+    await check_and_increment_usage(user.user_id, "writing", is_user_premium(user))
     system = (
         "You are an expert English writing coach. Return ONLY valid JSON: "
         "{\"scores\": {\"grammar\": int, \"vocabulary\": int, \"coherence\": int, \"style\": int}, "
@@ -418,6 +482,7 @@ async def pronunciation_check(
     authorization: Optional[str] = Header(None),
 ):
     user = await get_current_user(request, session_token, authorization)
+    await check_and_increment_usage(user.user_id, "pronunciation", is_user_premium(user))
     audio_bytes = await audio.read()
     if not audio_bytes:
         raise HTTPException(status_code=400, detail="Empty audio")
@@ -516,7 +581,12 @@ async def list_lessons(request: Request,
                        authorization: Optional[str] = Header(None)):
     user = await get_current_user(request, session_token, authorization)
     completed = set(user.completed_lesson_ids or [])
-    return {"lessons": [{**l, "completed": l["id"] in completed} for l in LESSONS]}
+    premium = is_user_premium(user)
+    return {"lessons": [{
+        **l,
+        "completed": l["id"] in completed,
+        "locked": (not premium) and l["level"] != "Beginner",
+    } for l in LESSONS]}
 
 
 @api_router.get("/lessons/{lesson_id}")
@@ -527,6 +597,15 @@ async def get_lesson(lesson_id: str, request: Request,
     lesson = next((l for l in LESSONS if l["id"] == lesson_id), None)
     if not lesson:
         raise HTTPException(status_code=404, detail="Lesson not found")
+    if lesson["level"] != "Beginner" and not is_user_premium(user):
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "code": "premium_required",
+                "feature": "advanced_lessons",
+                "message": "This lesson is part of Premium. Upgrade to unlock all Intermediate & Advanced lessons.",
+            },
+        )
 
     cached = await db.lesson_content.find_one({"lesson_id": lesson_id}, {"_id": 0})
     if cached:
@@ -609,6 +688,84 @@ async def set_level(body: SetLevelRequest, request: Request,
         raise HTTPException(status_code=400, detail="Invalid level")
     await db.users.update_one({"user_id": user.user_id}, {"$set": {"level": body.level}})
     return {"level": body.level}
+
+
+# ---------- Billing (MOCKED — no real Razorpay payment) ----------
+PREMIUM_PRICE_INR = 99
+
+
+@api_router.get("/billing/status")
+async def billing_status(request: Request,
+                         session_token: Optional[str] = Cookie(None),
+                         authorization: Optional[str] = Header(None)):
+    user = await get_current_user(request, session_token, authorization)
+    today = date.today().isoformat()
+    usage_docs = await db.usage_logs.find(
+        {"user_id": user.user_id, "date": today}, {"_id": 0, "feature": 1, "count": 1}
+    ).to_list(20)
+    usage = {f: 0 for f in FREE_LIMITS}
+    for d in usage_docs:
+        if d.get("feature") in usage:
+            usage[d["feature"]] = d.get("count", 0)
+    return {
+        "is_premium": is_user_premium(user),
+        "premium_until": user.premium_until,
+        "price_inr": PREMIUM_PRICE_INR,
+        "limits": FREE_LIMITS,
+        "usage": usage,
+    }
+
+
+@api_router.post("/billing/upgrade")
+async def billing_upgrade(request: Request,
+                          session_token: Optional[str] = Cookie(None),
+                          authorization: Optional[str] = Header(None)):
+    """MOCKED payment — instantly grants Premium for 30 days. Replace with Razorpay verify in production."""
+    user = await get_current_user(request, session_token, authorization)
+    until = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"is_premium": True, "premium_until": until}},
+    )
+    await db.payments.insert_one({
+        "user_id": user.user_id,
+        "amount_inr": PREMIUM_PRICE_INR,
+        "method": "MOCK",
+        "status": "success",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return {"is_premium": True, "premium_until": until, "mocked": True}
+
+
+@api_router.post("/billing/cancel")
+async def billing_cancel(request: Request,
+                         session_token: Optional[str] = Cookie(None),
+                         authorization: Optional[str] = Header(None)):
+    user = await get_current_user(request, session_token, authorization)
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"is_premium": False, "premium_until": None}},
+    )
+    return {"is_premium": False}
+
+
+# ---------- Share card ----------
+@api_router.get("/share/streak")
+async def share_streak(request: Request,
+                       session_token: Optional[str] = Cookie(None),
+                       authorization: Optional[str] = Header(None)):
+    user = await get_current_user(request, session_token, authorization)
+    return {
+        "name": user.name,
+        "streak": user.streak,
+        "xp": user.xp,
+        "level": user.level,
+        "completed_lessons": len(user.completed_lesson_ids or []),
+        "share_text": (
+            f"🔥 I just hit a {user.streak}-day English streak on English Coach! "
+            f"{user.xp} XP and counting. Join me — your AI English coach is free to start."
+        ),
+    }
 
 
 @api_router.get("/")
