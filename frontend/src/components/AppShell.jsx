@@ -22,7 +22,11 @@ const NAV_PREMIUM = { to: "/premium", label: "Premium", icon: Crown, testId: "na
 export default function AppShell({ children }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const nav = user?.is_premium ? NAV_BASE : [...NAV_BASE, NAV_PREMIUM];
+  const nav = user?.is_premium
+    ? NAV_BASE
+    : user?.has_completed_day1
+    ? [...NAV_BASE, NAV_PREMIUM]
+    : NAV_BASE;
 
   return (
     <div className="min-h-screen bg-slate-50">

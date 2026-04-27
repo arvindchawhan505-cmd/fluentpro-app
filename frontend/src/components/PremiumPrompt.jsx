@@ -2,16 +2,22 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Crown, X } from "@phosphor-icons/react";
+import { useAuth } from "@/context/AuthContext";
 
 export default function PremiumPrompt() {
   const [msg, setMsg] = useState(null);
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   useEffect(() => {
-    const handler = (e) => setMsg(e.detail?.message || "Upgrade to Premium to continue.");
+    const handler = (e) => {
+      // Don't surface premium upsell until the user has finished Day-1 onboarding.
+      if (user && !user.has_completed_day1) return;
+      setMsg(e.detail?.message || "Upgrade to Premium to continue.");
+    };
     window.addEventListener("premium-required", handler);
     return () => window.removeEventListener("premium-required", handler);
-  }, []);
+  }, [user]);
 
   return (
     <AnimatePresence>

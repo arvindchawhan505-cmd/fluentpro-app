@@ -1,7 +1,7 @@
 import React from "react";
 import "@/App.css";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
-import { AuthProvider } from "@/context/AuthContext";
+import { BrowserRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
+import { AuthProvider, useAuth } from "@/context/AuthContext";
 import AuthCallback from "@/pages/AuthCallback";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/AppShell";
@@ -36,6 +36,16 @@ function Protected({ children }) {
   );
 }
 
+function PremiumGate({ children }) {
+  // Premium upsell is hidden until the user finishes Day-1 onboarding.
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (user && !user.has_completed_day1) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return children;
+}
+
 function AppRouter() {
   const location = useLocation();
   // Synchronous check for OAuth callback to avoid race conditions
@@ -54,7 +64,7 @@ function AppRouter() {
       <Route path="/pronunciation" element={<Protected><Pronunciation /></Protected>} />
       <Route path="/writing" element={<Protected><Writing /></Protected>} />
       <Route path="/profile" element={<Protected><Profile /></Protected>} />
-      <Route path="/premium" element={<Protected><Premium /></Protected>} />
+      <Route path="/premium" element={<Protected><PremiumGate><Premium /></PremiumGate></Protected>} />
       <Route path="/start-practice" element={<ProtectedRoute><StartPractice /></ProtectedRoute>} />
     </Routes>
   );

@@ -19,6 +19,7 @@ export default function UpgradeNudgeModal() {
   useEffect(() => {
     if (!user) return;
     if (user.is_premium) return;
+    if (!user.has_completed_day1) return; // hide all upsell until Day-1 done
     if (localStorage.getItem(DISMISS_KEY) === todayStr()) return;
     (async () => {
       try {
