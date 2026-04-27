@@ -41,7 +41,17 @@ function PremiumGate({ children }) {
   const { user, loading } = useAuth();
   if (loading) return null;
   if (user && !user.has_completed_day1) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/start-practice" replace />;
+  }
+  return children;
+}
+
+function NewUserGate({ children }) {
+  // Any feature route is hidden for new users — they are funnelled to /start-practice.
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (user && !user.has_completed_day1) {
+    return <Navigate to="/start-practice" replace />;
   }
   return children;
 }
@@ -56,13 +66,13 @@ function AppRouter() {
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
-      <Route path="/lessons" element={<Protected><Lessons /></Protected>} />
-      <Route path="/lessons/:id" element={<Protected><LessonDetail /></Protected>} />
-      <Route path="/conversation" element={<Protected><Conversation /></Protected>} />
-      <Route path="/grammar" element={<Protected><Grammar /></Protected>} />
-      <Route path="/vocabulary" element={<Protected><Vocabulary /></Protected>} />
-      <Route path="/pronunciation" element={<Protected><Pronunciation /></Protected>} />
-      <Route path="/writing" element={<Protected><Writing /></Protected>} />
+      <Route path="/lessons" element={<Protected><NewUserGate><Lessons /></NewUserGate></Protected>} />
+      <Route path="/lessons/:id" element={<Protected><NewUserGate><LessonDetail /></NewUserGate></Protected>} />
+      <Route path="/conversation" element={<Protected><NewUserGate><Conversation /></NewUserGate></Protected>} />
+      <Route path="/grammar" element={<Protected><NewUserGate><Grammar /></NewUserGate></Protected>} />
+      <Route path="/vocabulary" element={<Protected><NewUserGate><Vocabulary /></NewUserGate></Protected>} />
+      <Route path="/pronunciation" element={<Protected><NewUserGate><Pronunciation /></NewUserGate></Protected>} />
+      <Route path="/writing" element={<Protected><NewUserGate><Writing /></NewUserGate></Protected>} />
       <Route path="/profile" element={<Protected><Profile /></Protected>} />
       <Route path="/premium" element={<Protected><PremiumGate><Premium /></PremiumGate></Protected>} />
       <Route path="/start-practice" element={<ProtectedRoute><StartPractice /></ProtectedRoute>} />

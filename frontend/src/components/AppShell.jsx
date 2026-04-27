@@ -22,11 +22,13 @@ const NAV_PREMIUM = { to: "/premium", label: "Premium", icon: Crown, testId: "na
 export default function AppShell({ children }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const nav = user?.is_premium
+  // For new users, only "Today" is visible — everything else is gated until Day-1 done.
+  const isNewUser = !!user && !user.has_completed_day1;
+  const nav = isNewUser
+    ? [NAV_BASE[0]]
+    : user?.is_premium
     ? NAV_BASE
-    : user?.has_completed_day1
-    ? [...NAV_BASE, NAV_PREMIUM]
-    : NAV_BASE;
+    : [...NAV_BASE, NAV_PREMIUM];
 
   return (
     <div className="min-h-screen bg-slate-50">
