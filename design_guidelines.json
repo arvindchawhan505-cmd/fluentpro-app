@@ -1,0 +1,142 @@
+{
+  "theme": "LIGHT",
+  "archetype": "6 (Vibrant Play) + Soft Utility",
+  "design_concept": "Tactile Gamification (The 'Modern Coach' Vibe)",
+  "rationale": "For an English learning app, the interface must feel encouraging, structured, and rewarding. We avoid the clinical 'SaaS' look by using tactile UI elements (3D-like buttons with bottom borders), vibrant but carefully controlled accent colors, and friendly, rounded typography. The design promotes progression and reduces cognitive load, much like Duolingo, but maintains a slightly more mature 'Coach' aesthetic.",
+  "colors": {
+    "background": {
+      "page": "bg-slate-50",
+      "card": "bg-white",
+      "overlay": "bg-slate-900/40"
+    },
+    "text": {
+      "primary": "text-slate-900",
+      "secondary": "text-slate-500",
+      "inverse": "text-white",
+      "accent": "text-sky-600"
+    },
+    "brand": {
+      "primary": "bg-sky-400",
+      "primary_hover": "bg-sky-500",
+      "primary_border": "border-sky-500",
+      "primary_shadow": "border-sky-600"
+    },
+    "gamification": {
+      "success": "bg-green-400",
+      "success_shadow": "border-green-600",
+      "streak": "bg-orange-400",
+      "streak_shadow": "border-orange-600",
+      "level": "bg-amber-400",
+      "level_shadow": "border-amber-600",
+      "error": "bg-rose-400",
+      "error_shadow": "border-rose-600"
+    },
+    "borders": {
+      "default": "border-slate-200",
+      "focus": "ring-2 ring-sky-400 ring-offset-2"
+    }
+  },
+  "typography": {
+    "fonts": {
+      "heading": "font-sans (Nunito - import from Google Fonts)",
+      "body": "font-sans (Manrope - import from Google Fonts)"
+    },
+    "hierarchy": {
+      "h1": "text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900",
+      "h2": "text-2xl md:text-3xl font-bold tracking-tight text-slate-800",
+      "h3": "text-xl font-bold text-slate-800",
+      "body": "text-base font-medium text-slate-600 leading-relaxed",
+      "label": "text-sm font-bold uppercase tracking-wider text-slate-500"
+    }
+  },
+  "spacing_and_layout": {
+    "grid_system": {
+      "dashboard": "grid grid-cols-1 md:grid-cols-12 gap-6",
+      "bento_spans": {
+        "main_content": "md:col-span-8",
+        "sidebar_stats": "md:col-span-4",
+        "card_half": "md:col-span-6",
+        "card_full": "col-span-full"
+      }
+    },
+    "spacing_scale": {
+      "section": "py-12 md:py-20",
+      "card_padding": "p-6 md:p-8",
+      "gap_standard": "gap-4 md:gap-6"
+    },
+    "border_radius": {
+      "button": "rounded-xl",
+      "card": "rounded-2xl md:rounded-3xl",
+      "badge": "rounded-full"
+    }
+  },
+  "components": {
+    "button": {
+      "primary_tactile": "relative flex items-center justify-center rounded-xl bg-sky-400 px-6 py-3 font-bold text-white transition-all hover:bg-sky-500 border-b-4 border-sky-600 active:border-b-0 active:translate-y-1 active:mt-1",
+      "secondary_tactile": "relative flex items-center justify-center rounded-xl bg-white px-6 py-3 font-bold text-slate-700 transition-all hover:bg-slate-50 border-2 border-slate-200 border-b-4 hover:border-slate-300 active:border-b-2 active:translate-y-[2px] active:mt-[2px]",
+      "success_tactile": "relative flex items-center justify-center rounded-xl bg-green-400 px-6 py-3 font-bold text-white transition-all hover:bg-green-500 border-b-4 border-green-600 active:border-b-0 active:translate-y-1 active:mt-1"
+    },
+    "card": {
+      "base": "bg-white rounded-3xl border-2 border-slate-100 p-6 shadow-sm",
+      "interactive": "bg-white rounded-3xl border-2 border-slate-200 p-6 shadow-sm transition-all hover:-translate-y-1 hover:border-sky-300 hover:shadow-md cursor-pointer"
+    },
+    "progress_bar": {
+      "track": "h-4 w-full rounded-full bg-slate-100 overflow-hidden",
+      "fill": "h-full rounded-full bg-sky-400 relative after:absolute after:top-1 after:left-1 after:right-1 after:h-1.5 after:bg-white/30 after:rounded-full"
+    },
+    "inputs": {
+      "text": "w-full rounded-xl border-2 border-slate-200 bg-slate-50 p-4 font-medium text-slate-900 transition-colors focus:border-sky-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-sky-400/20"
+    }
+  },
+  "motion": {
+    "page_transition": "framer-motion opacity-0 translate-y-4 to opacity-100 translate-y-0 duration-300",
+    "list_stagger": "framer-motion staggerChildren 0.1s",
+    "success_pop": "framer-motion scale 0.8 to 1.1 to 1.0 with spring physics (stiffness 300, damping 15)"
+  },
+  "icons": {
+    "library": "@phosphor-icons/react",
+    "style": "weight='duotone'",
+    "sizing": "w-6 h-6 or w-8 h-8 for larger features",
+    "installation": "yarn add @phosphor-icons/react"
+  },
+  "media": {
+    "image_urls": [
+      {
+        "category": "hero_student",
+        "url": "https://images.pexels.com/photos/19546271/pexels-photo-19546271.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "alt": "Happy student studying",
+        "placement": "Landing page hero section or login screen"
+      },
+      {
+        "category": "abstract_decoration_1",
+        "url": "https://images.unsplash.com/photo-1751644332113-2004a1b143f1?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzd8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMGNvbG9yZnVsJTIwM2QlMjBzaGFwZXMlMjBtb2Rlcm58ZW58MHx8fHwxNzc3MjkzMjQyfDA&ixlib=rb-4.1.0&q=85",
+        "alt": "Colorful 3D shapes",
+        "placement": "Background decoration for Gamification/Level up screens"
+      },
+      {
+        "category": "abstract_decoration_2",
+        "url": "https://images.pexels.com/photos/29579755/pexels-photo-29579755.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "alt": "Vibrant geometric art",
+        "placement": "Lesson category cover image or dashboard banner"
+      },
+      {
+        "category": "student_avatar",
+        "url": "https://images.pexels.com/photos/5538605/pexels-photo-5538605.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "alt": "User Profile Avatar",
+        "placement": "Profile page placeholder or top nav avatar"
+      }
+    ],
+    "guidelines": "Do not use generic placeholder links. Use the provided Unsplash/Pexels images. Utilize framer-motion to add subtle float animations to abstract decorative images."
+  },
+  "instructions_to_main_agent": [
+    "CRITICAL: Do not use generic Inter font. Import 'Nunito' for headings and 'Manrope' for body from Google Fonts in index.html or global css.",
+    "Use @phosphor-icons/react in duotone weight exclusively to match the playful gamified theme.",
+    "Apply the 'tactile' button styles provided in the components section to all primary CTAs to create a gamified, physical feel. The buttons use border-b-4 to create 3D depth, which disappears on active state.",
+    "Data structure: Use a standard Tailwind grid (md:grid-cols-12) for the dashboard. A 8-col section for Main Lessons/Path and a 4-col sticky sidebar for User Stats (Streaks, XP, Leaderboard).",
+    "All interactive elements (buttons, inputs, lesson cards, streak icons) MUST include a 'data-testid' attribute (e.g. data-testid='start-lesson-button').",
+    "For the Progress Bar, add the 'after:absolute after:top-1 after:left-1...' inner highlight utility detailed in components.progress_bar to make the bar look glassy and 3D.",
+    "Use standard Shadcn components for Dialogs, Dropdowns, and Toasts, but override their border-radii to rounded-2xl/rounded-3xl and replace standard borders with our softer slate-200 borders.",
+    "Avoid complete black text. Use text-slate-900 or text-slate-800 for maximum readability while keeping the design soft.",
+    "Use framer-motion to create a springy, bouncy entrance for badges, success screens, or streak updates."
+  ]
+}
