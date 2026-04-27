@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import { PaperPlaneRight, SpeakerHigh, ChatsCircle } from "@phosphor-icons/react";
+import { PaperPlaneRight, SpeakerHigh, ChatsCircle, Sparkle } from "@phosphor-icons/react";
 
 const SCENARIOS = [
   { key: "general", label: "Free chat" },
@@ -32,7 +32,7 @@ export default function Conversation() {
     setLoading(true);
     try {
       const { data } = await api.post("/conversation", { session_id: sessionId, message: text, scenario });
-      setMessages((m) => [...m, { role: "assistant", content: data.reply }]);
+      setMessages((m) => [...m, { role: "assistant", content: data.reply, corrections: data.corrections || [], suggestion: data.suggestion || "" }]);
     } catch (e) {
       setMessages((m) => [...m, { role: "assistant", content: "⚠️ Sorry, I couldn't respond. Please try again." }]);
     } finally {
@@ -70,7 +70,7 @@ export default function Conversation() {
             data-testid={`scenario-${s.key}`}
             onClick={() => setScenario(s.key)}
             className={`rounded-full border-2 px-4 py-1.5 text-sm font-bold transition ${
-              scenario === s.key ? "border-sky-500 bg-sky-400 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-sky-200"
+              scenario === s.key ? "border-indigo-500 bg-gradient-to-r from-blue-500 to-violet-500 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-indigo-200"
             }`}
           >
             {s.label}
@@ -86,20 +86,48 @@ export default function Conversation() {
         <div className="space-y-3">
           {messages.map((m, i) => (
             <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div
-                className={`relative max-w-[85%] rounded-2xl p-3 ${
-                  m.role === "user" ? "rounded-tr-md bg-sky-400 text-white" : "rounded-tl-md border-2 border-slate-100 bg-slate-50 text-slate-800"
-                }`}
-              >
-                <div className="whitespace-pre-wrap font-medium">{m.content}</div>
-                {m.role === "assistant" && (
-                  <button
-                    onClick={() => speak(m.content)}
-                    data-testid={`speak-message-${i}`}
-                    className="mt-2 inline-flex items-center gap-1 rounded-full bg-white px-2 py-1 text-xs font-bold text-slate-500 shadow-sm hover:text-sky-600"
-                  >
-                    <SpeakerHigh weight="duotone" size={14} /> Listen
-                  </button>
+              <div className={`flex max-w-[88%] flex-col gap-2 ${m.role === "user" ? "items-end" : "items-start"}`}>
+                <div
+                  className={`relative rounded-2xl p-3 ${
+                    m.role === "user" ? "rounded-tr-md bg-gradient-to-br from-blue-500 to-violet-500 text-white" : "rounded-tl-md border-2 border-slate-100 bg-slate-50 text-slate-800"
+                  }`}
+                >
+                  <div className="whitespace-pre-wrap font-medium">{m.content}</div>
+                  {m.role === "assistant" && (
+                    <button
+                      onClick={() => speak(m.content)}
+                      data-testid={`speak-message-${i}`}
+                      className="mt-2 inline-flex items-center gap-1 rounded-full bg-white px-2 py-1 text-xs font-bold text-slate-500 shadow-sm hover:text-indigo-600"
+                    >
+                      <SpeakerHigh weight="duotone" size={14} /> Listen
+                    </button>
+                  )}
+                </div>
+
+                {m.role === "assistant" && m.corrections?.length > 0 && (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-2.5 text-sm" data-testid={`corrections-${i}`}>
+                    <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-amber-700">Quick fix</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {m.corrections.map((c, ci) => (
+                        <span key={ci} className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-1 text-xs font-bold shadow-sm">
+                          <span className="text-rose-600 line-through">{c.original}</span>
+                          <span className="text-slate-400">→</span>
+                          <span className="text-emerald-700">{c.correction}</span>
+                        </span>
+                      ))}
+                    </div>
+                    {m.corrections[0]?.note && <div className="mt-2 text-xs font-medium text-amber-800">{m.corrections[0].note}</div>}
+                  </div>
+                )}
+
+                {m.role === "assistant" && m.suggestion && (
+                  <div className="inline-flex items-start gap-2 rounded-2xl border border-indigo-200 bg-indigo-50 p-2.5 text-sm" data-testid={`suggestion-${i}`}>
+                    <Sparkle weight="fill" size={14} className="mt-0.5 shrink-0 text-indigo-500" />
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-700">Better way to say it</div>
+                      <div className="mt-0.5 font-medium text-indigo-900">{m.suggestion}</div>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
@@ -127,13 +155,13 @@ export default function Conversation() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Type your message…"
-          className="w-full rounded-xl border-2 border-slate-200 bg-white p-4 font-medium text-slate-900 transition focus:border-sky-400 focus:outline-none focus:ring-4 focus:ring-sky-400/20"
+          className="w-full rounded-xl border-2 border-slate-200 bg-white p-4 font-medium text-slate-900 transition focus:border-indigo-400 focus:outline-none focus:ring-4 focus:ring-indigo-200"
         />
         <button
           type="submit"
           data-testid="conversation-send-button"
           disabled={loading || !input.trim()}
-          className="relative rounded-xl border-b-4 border-sky-600 bg-sky-400 px-5 py-4 font-bold text-white transition hover:bg-sky-500 active:translate-y-1 active:border-b-0 disabled:opacity-50"
+          className="relative rounded-xl border-b-4 border-indigo-700 bg-gradient-to-r from-blue-500 to-violet-500 px-5 py-4 font-bold text-white transition hover:from-blue-600 hover:to-violet-600 active:translate-y-1 active:border-b-0 disabled:opacity-50"
         >
           <PaperPlaneRight weight="fill" size={20} />
         </button>

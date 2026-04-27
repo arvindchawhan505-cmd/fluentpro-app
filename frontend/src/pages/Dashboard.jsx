@@ -10,6 +10,8 @@ import {
 import StreakFlame from "@/components/StreakFlame";
 import ShareStreakModal from "@/components/ShareStreakModal";
 import DailyCheckinCard from "@/components/DailyCheckinCard";
+import DailyChallengeCard from "@/components/DailyChallengeCard";
+import LevelBadge from "@/components/LevelBadge";
 
 const quickActions = [
   { to: "/conversation", title: "Chat with Coach", subtitle: "Practice real conversations", icon: ChatsCircle, color: "from-blue-500 to-violet-500", testId: "quick-conversation" },
@@ -82,10 +84,13 @@ export default function Dashboard() {
         <div className="md:col-span-4 grid grid-cols-3 gap-3 md:grid-cols-1">
           <StreakStat streak={progress?.streak ?? 0} testId="stat-streak" />
           <Stat icon={Star} label="XP" value={progress?.xp ?? 0} color="text-amber-600 bg-amber-50" testId="stat-xp" />
-          <Stat icon={Trophy} label="Level" value={progress?.level ?? "—"} color="text-violet-600 bg-violet-50" testId="stat-level" />
+          <div className="rounded-2xl border-2 border-slate-100 bg-white p-3" data-testid="stat-level">
+            <LevelBadge levelInfo={progress?.level_info} size="sm" />
+          </div>
         </div>
       </motion.section>
 
+      <DailyChallengeCard />
       <DailyCheckinCard />
 
       <section>

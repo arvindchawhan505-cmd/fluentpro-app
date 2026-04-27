@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
-import { User, Star, Trophy, Briefcase, Airplane, GraduationCap, ChatsCircle, Sparkle, Crown } from "@phosphor-icons/react";
+import { User, Star, Trophy, Briefcase, Airplane, GraduationCap, ChatsCircle, Sparkle, Crown, CheckCircle, Lock } from "@phosphor-icons/react";
 import StreakFlame from "@/components/StreakFlame";
+import LevelBadge from "@/components/LevelBadge";
 
 const LEVELS = ["Beginner", "Intermediate", "Advanced"];
 
@@ -74,6 +75,27 @@ export default function Profile() {
         <Stat icon={Star} label="XP" value={progress?.xp ?? 0} color="bg-amber-50 text-amber-600" />
         <Stat icon={Trophy} label="Level" value={user?.level} color="bg-violet-50 text-violet-600" />
       </div>
+
+      {/* Level progression */}
+      {progress?.level_info && (
+        <div className="rounded-3xl border-2 border-slate-100 bg-white p-6" data-testid="level-progression-card">
+          <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Your level</div>
+          <div className="mt-3">
+            <LevelBadge levelInfo={progress.level_info} size="lg" />
+          </div>
+          <div className="mt-5">
+            <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Perks</div>
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {progress.level_info.perks.map((p) => (
+                <div key={p.label} className={`flex items-center gap-2 rounded-2xl border-2 p-3 ${p.unlocked ? "border-emerald-100 bg-emerald-50" : "border-slate-100 bg-slate-50"}`}>
+                  {p.unlocked ? <CheckCircle weight="fill" className="text-emerald-500" /> : <Lock weight="duotone" className="text-slate-400" />}
+                  <span className={`text-sm font-bold ${p.unlocked ? "text-emerald-800" : "text-slate-500"}`}>Lvl {p.level} · {p.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Level */}
       <div className="rounded-3xl border-2 border-slate-100 bg-white p-6">

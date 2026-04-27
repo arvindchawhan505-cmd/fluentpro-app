@@ -309,22 +309,28 @@ def build_chat(session_id: str, system_message: str) -> LlmChat:
 
 
 SCENARIO_PROMPTS = {
-    "general": "You are Coach Ada, a warm and encouraging English tutor. Have natural conversations with the learner. Keep replies to 1-3 sentences. Ask follow-up questions. Gently correct errors inline using (→ correction).",
-    "restaurant": "You are a waiter at a cozy cafe. Role-play in English. 1-3 sentences. Gently correct grammar inline using (→ correction).",
-    "job_interview": "You are a friendly hiring manager doing a mock interview. Ask one question at a time. Short replies. Correct grammar inline using (→ correction).",
-    "travel": "You are a helpful travel agent. Role-play a booking conversation. 1-3 sentences. Correct grammar inline using (→ correction).",
-    "small_talk": "You are a friendly neighbor making small talk. Casual and short. Correct grammar inline using (→ correction).",
+    "general": "You are Coach Ada, a warm and encouraging English tutor. Have natural conversations.",
+    "restaurant": "You are a waiter at a cozy cafe. Role-play in English.",
+    "job_interview": "You are a friendly hiring manager doing a mock interview. One question at a time.",
+    "travel": "You are a helpful travel agent. Role-play a booking conversation.",
+    "small_talk": "You are a friendly neighbor making small talk. Casual.",
 }
+
+CHAT_JSON_INSTRUCTIONS = (
+    " Return ONLY valid JSON: {\"reply\": str (1-3 sentences, end with a follow-up question when natural), "
+    "\"corrections\": [{\"original\": str, \"correction\": str, \"note\": str}] (only if learner had grammar errors; otherwise []), "
+    "\"suggestion\": str (an optional ONE-sentence 'better way to say it' rewrite of the learner's last message — leave empty string if their sentence was already great)}. No markdown."
+)
 
 
 def build_system_for_user(user: "User", scenario: str) -> str:
     base = SCENARIO_PROMPTS.get(scenario, SCENARIO_PROMPTS["general"])
     if scenario == "general" and user.goal and user.goal in GOALS:
-        return GOALS[user.goal]["tutor_persona"]
+        base = GOALS[user.goal]["tutor_persona"].split(".")[0] + "."
     if user.goal and user.goal in GOALS:
-        base += f" The learner's overall goal is: {GOALS[user.goal]['label']}. Subtly tailor examples and follow-up questions to that goal."
+        base += f" Learner's overall goal: {GOALS[user.goal]['label']}."
     base += f" Learner level: {user.level}."
-    return base
+    return base + CHAT_JSON_INSTRUCTIONS
 
 
 @api_router.post("/conversation")
@@ -348,20 +354,33 @@ async def conversation(body: ConversationRequest, request: Request,
         prior = "Previous turns:\n" + "\n".join(snippets) + "\n\nLearner now says: "
 
     try:
-        reply = await chat.send_message(UserMessage(text=prior + body.message))
+        raw = await chat.send_message(UserMessage(text=prior + body.message))
     except Exception as e:
         logger.exception("conversation error")
         raise HTTPException(status_code=500, detail=f"LLM error: {e}")
+
+    # Parse structured JSON response (with graceful fallback to plain text)
+    reply = raw
+    corrections = []
+    suggestion = ""
+    try:
+        data = _parse_json(raw)
+        reply = data.get("reply") or raw
+        corrections = data.get("corrections") or []
+        suggestion = data.get("suggestion") or ""
+    except Exception:
+        pass
 
     now = datetime.now(timezone.utc).isoformat()
     await db.conversations.insert_many([
         {"user_id": user.user_id, "session_id": body.session_id,
          "role": "user", "content": body.message, "created_at": now},
         {"user_id": user.user_id, "session_id": body.session_id,
-         "role": "assistant", "content": reply, "created_at": now},
+         "role": "assistant", "content": reply, "corrections": corrections, "suggestion": suggestion, "created_at": now},
     ])
     await update_streak_and_xp(user.user_id, 5)
-    return {"reply": reply}
+    await increment_challenge_metric(user.user_id, "conversation_messages", 1)
+    return {"reply": reply, "corrections": corrections, "suggestion": suggestion}
 
 
 @api_router.get("/conversation/history/{session_id}")
@@ -395,6 +414,7 @@ async def grammar_check(body: GrammarRequest, request: Request,
         logger.exception("grammar parse error")
         raise HTTPException(status_code=500, detail=f"LLM parse error: {e}")
     await update_streak_and_xp(user.user_id, 10)
+    await increment_challenge_metric(user.user_id, "grammar_checks", 1)
     return data
 
 
@@ -454,6 +474,7 @@ async def vocabulary_daily(body: VocabularyRequest, request: Request,
         "words": data["words"],
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
+    await increment_challenge_metric(user.user_id, "vocab_words_seen", len(data["words"]))
     return {"words": data["words"]}
 
 
@@ -550,6 +571,7 @@ async def pronunciation_check(
         data = {"score": 50, "accuracy": "Unknown", "missed_words": [], "extra_words": [], "tip": "Could not grade, please try again."}
 
     await update_streak_and_xp(user.user_id, 10)
+    await increment_challenge_metric(user.user_id, "pronunciation_good", 1 if (data.get("score") or 0) >= 60 else 0)
     return {"transcription": transcription, **data}
 
 
@@ -697,6 +719,7 @@ async def complete_lesson(body: CompleteLessonRequest, request: Request,
             {"$addToSet": {"completed_lesson_ids": body.lesson_id}},
         )
     await update_streak_and_xp(user.user_id, 25 + max(0, body.score // 5))
+    await increment_challenge_metric(user.user_id, "lessons_completed", 1)
     user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
     return {"user": user_doc}
 
@@ -715,6 +738,7 @@ async def progress(request: Request,
         "completed": completed,
         "total_lessons": total,
         "progress_pct": round(100 * completed / total) if total else 0,
+        "level_info": level_from_xp(user.xp),
     }
 
 
@@ -873,7 +897,150 @@ async def checkin_respond(body: CheckinResponseRequest, request: Request,
         upsert=True,
     )
     await update_streak_and_xp(user.user_id, 15)
+    await increment_challenge_metric(user.user_id, "checkin_done", 1)
     return {"prompt": prompt, "response": text, "feedback": feedback, "already_completed": False}
+
+
+# ---------- Levels ----------
+LEVEL_THRESHOLDS = [
+    (0, "Sprout", "🌱"),
+    (100, "Learner", "📘"),
+    (250, "Speaker", "🎙️"),
+    (500, "Storyteller", "🎬"),
+    (1000, "Polyglot", "🌍"),
+    (2000, "Maven", "💎"),
+    (4000, "Legend", "👑"),
+]
+
+
+def level_from_xp(xp: int) -> dict:
+    cur = LEVEL_THRESHOLDS[0]
+    nxt = None
+    for i, t in enumerate(LEVEL_THRESHOLDS):
+        if xp >= t[0]:
+            cur = t
+            nxt = LEVEL_THRESHOLDS[i + 1] if i + 1 < len(LEVEL_THRESHOLDS) else None
+    next_xp = nxt[0] if nxt else cur[0]
+    span = (nxt[0] - cur[0]) if nxt else 1
+    progress_pct = 100 if not nxt else round(100 * (xp - cur[0]) / max(1, span))
+    return {
+        "level_number": LEVEL_THRESHOLDS.index(cur) + 1,
+        "level_name": cur[1],
+        "level_emoji": cur[2],
+        "current_threshold": cur[0],
+        "next_threshold": next_xp,
+        "next_name": nxt[1] if nxt else None,
+        "next_emoji": nxt[2] if nxt else None,
+        "progress_pct": progress_pct,
+        "perks": [
+            {"level": 2, "label": "Custom share-card themes", "unlocked": xp >= 100},
+            {"level": 3, "label": "All conversation scenarios", "unlocked": xp >= 250},
+            {"level": 4, "label": "Bonus weekly challenge", "unlocked": xp >= 500},
+            {"level": 5, "label": "Polyglot frame on streak cards", "unlocked": xp >= 1000},
+        ],
+    }
+
+
+# ---------- Daily Challenges ----------
+DAILY_CHALLENGES = [
+    {"key": "vocab_5", "title": "Learn 5 new words", "description": "Open today's vocabulary cards (any level) and review at least 5 words.", "target": 5, "metric": "vocab_words_seen", "reward_xp": 40},
+    {"key": "convo_5", "title": "Chat 5 turns with Coach Ada", "description": "Send 5 messages in any conversation scenario.", "target": 5, "metric": "conversation_messages", "reward_xp": 50},
+    {"key": "lesson_1", "title": "Finish 1 lesson", "description": "Complete any lesson and its practice questions.", "target": 1, "metric": "lessons_completed", "reward_xp": 60},
+    {"key": "pron_3", "title": "Nail 3 pronunciations", "description": "Record 3 pronunciation attempts with score ≥ 60.", "target": 3, "metric": "pronunciation_good", "reward_xp": 50},
+    {"key": "writing_1", "title": "Write & get feedback", "description": "Submit one writing piece and receive feedback.", "target": 1, "metric": "writing_submitted", "reward_xp": 50},
+    {"key": "grammar_2", "title": "Polish 2 grammar checks", "description": "Run grammar check on 2 different texts.", "target": 2, "metric": "grammar_checks", "reward_xp": 40},
+    {"key": "checkin", "title": "Daily check-in", "description": "Complete today's 60-second goal check-in.", "target": 1, "metric": "checkin_done", "reward_xp": 30},
+]
+
+
+def _today_challenge(user_id: str) -> dict:
+    today = date.today().isoformat()
+    digest = hashlib.sha256(f"daily_{user_id}_{today}".encode()).hexdigest()
+    idx = int(digest, 16) % len(DAILY_CHALLENGES)
+    return DAILY_CHALLENGES[idx]
+
+
+def _seconds_until_midnight() -> int:
+    now = datetime.now(timezone.utc)
+    tomorrow = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    return max(0, int((tomorrow - now).total_seconds()))
+
+
+async def _get_or_create_challenge_progress(user_id: str) -> dict:
+    today = date.today().isoformat()
+    doc = await db.challenges.find_one({"user_id": user_id, "date": today}, {"_id": 0})
+    if doc:
+        return doc
+    ch = _today_challenge(user_id)
+    new_doc = {
+        "user_id": user_id,
+        "date": today,
+        "challenge_key": ch["key"],
+        "progress": 0,
+        "target": ch["target"],
+        "completed": False,
+        "claimed": False,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.challenges.insert_one(new_doc)
+    new_doc.pop("_id", None)
+    return new_doc
+
+
+async def increment_challenge_metric(user_id: str, metric: str, by: int = 1):
+    """Called from existing endpoints to bump challenge progress when relevant."""
+    today = date.today().isoformat()
+    doc = await db.challenges.find_one({"user_id": user_id, "date": today}, {"_id": 0})
+    if not doc:
+        ch = _today_challenge(user_id)
+        await db.challenges.insert_one({
+            "user_id": user_id, "date": today, "challenge_key": ch["key"],
+            "progress": 0, "target": ch["target"], "completed": False, "claimed": False,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        doc = await db.challenges.find_one({"user_id": user_id, "date": today}, {"_id": 0})
+    ch = next((c for c in DAILY_CHALLENGES if c["key"] == doc["challenge_key"]), None)
+    if not ch or ch["metric"] != metric or doc.get("completed"):
+        return
+    new_progress = min(doc["progress"] + by, ch["target"])
+    completed = new_progress >= ch["target"]
+    update = {"$set": {"progress": new_progress, "completed": completed}}
+    await db.challenges.update_one({"user_id": user_id, "date": today}, update)
+
+
+@api_router.get("/challenge/today")
+async def challenge_today(request: Request,
+                          session_token: Optional[str] = Cookie(None),
+                          authorization: Optional[str] = Header(None)):
+    user = await get_current_user(request, session_token, authorization)
+    doc = await _get_or_create_challenge_progress(user.user_id)
+    ch = next((c for c in DAILY_CHALLENGES if c["key"] == doc["challenge_key"]), DAILY_CHALLENGES[0])
+    return {
+        "challenge": {**ch},
+        "progress": doc["progress"],
+        "target": doc["target"],
+        "completed": doc["completed"],
+        "claimed": doc.get("claimed", False),
+        "seconds_until_reset": _seconds_until_midnight(),
+    }
+
+
+@api_router.post("/challenge/claim")
+async def challenge_claim(request: Request,
+                          session_token: Optional[str] = Cookie(None),
+                          authorization: Optional[str] = Header(None)):
+    user = await get_current_user(request, session_token, authorization)
+    today = date.today().isoformat()
+    doc = await db.challenges.find_one({"user_id": user.user_id, "date": today}, {"_id": 0})
+    if not doc or not doc.get("completed"):
+        raise HTTPException(status_code=400, detail="Challenge not yet completed")
+    if doc.get("claimed"):
+        return {"already_claimed": True, "xp_awarded": 0}
+    ch = next((c for c in DAILY_CHALLENGES if c["key"] == doc["challenge_key"]), None)
+    reward = ch["reward_xp"] if ch else 25
+    await db.challenges.update_one({"user_id": user.user_id, "date": today}, {"$set": {"claimed": True}})
+    await update_streak_and_xp(user.user_id, reward)
+    return {"already_claimed": False, "xp_awarded": reward}
 
 
 # ---------- Billing (MOCKED — no real Razorpay payment) ----------

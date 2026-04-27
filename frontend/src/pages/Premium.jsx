@@ -4,7 +4,6 @@ import { api } from "@/lib/api";
 import { celebrate } from "@/lib/celebrate";
 import { useAuth } from "@/context/AuthContext";
 import { Crown, CheckCircle, Sparkle, Lightning, Lock, X } from "@phosphor-icons/react";
-
 const FEATURES = [
   { name: "AI Conversation practice", free: "5 messages / day", premium: "Unlimited" },
   { name: "Grammar checks", free: "3 / day", premium: "Unlimited" },
@@ -58,16 +57,35 @@ export default function Premium() {
 
   return (
     <div className="space-y-6 pb-24 md:pb-8" data-testid="premium-page">
+      {!isPremium && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+          className="overflow-hidden rounded-3xl border-2 border-amber-300 bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 p-4 text-white shadow-lg"
+          data-testid="launch-banner"
+        >
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white/20"><Lightning weight="fill" size={22} /></span>
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-bold uppercase tracking-widest opacity-90">Limited launch offer</div>
+              <div className="text-lg font-extrabold" style={{ fontFamily: "Nunito, sans-serif" }}>
+                Premium at <span className="line-through opacity-70 text-base">₹199</span> <span className="ml-1">₹99/month</span> · 7-day free trial
+              </div>
+            </div>
+            <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-bold uppercase tracking-wider">Save 50%</span>
+          </div>
+        </motion.div>
+      )}
+
       <header className="text-center md:text-left">
         <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-amber-700">
           <Crown weight="fill" size={16} />
           <span className="text-xs font-bold uppercase tracking-wider">Coach Premium</span>
         </div>
         <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 md:text-4xl" style={{ fontFamily: "Nunito, sans-serif" }}>
-          {isPremium ? "You're a Premium learner ✨" : "Go Premium for ₹99/month"}
+          {isPremium ? "You're a Premium learner ✨" : "Go Premium · Start your 7-day free trial"}
         </h1>
         <p className="mt-2 max-w-2xl font-medium text-slate-600">
-          Unlock unlimited AI chat, advanced lessons, and priority coaching. Cancel anytime.
+          Unlock unlimited AI chat, advanced lessons, and priority coaching. {!isPremium && "Cancel anytime — even before the trial ends."}
         </p>
         {isPremium && status?.premium_until && (
           <div className="mt-2 text-sm font-bold text-slate-500">
@@ -109,8 +127,9 @@ export default function Premium() {
           <div className="mt-3 flex items-baseline gap-1">
             <span className="text-4xl font-extrabold text-slate-900" style={{ fontFamily: "Nunito, sans-serif" }}>₹99</span>
             <span className="font-bold text-slate-500">/month</span>
+            <span className="ml-2 rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">Launch price</span>
           </div>
-          <p className="mt-2 font-medium text-slate-700">For serious learners. Cancel anytime.</p>
+          <p className="mt-2 font-medium text-slate-700">For serious learners. <b>7-day free trial</b>, then ₹99/month.</p>
           <ul className="mt-5 space-y-2 text-sm font-medium text-slate-800">
             <li className="flex items-start gap-2"><Lightning weight="fill" className="mt-0.5 text-amber-500" /> <b>Unlimited</b> AI chat with Coach Ada</li>
             <li className="flex items-start gap-2"><Lightning weight="fill" className="mt-0.5 text-amber-500" /> <b>Unlimited</b> grammar, writing, and pronunciation</li>
@@ -120,14 +139,18 @@ export default function Premium() {
           </ul>
 
           {!isPremium ? (
-            <button
+            <motion.button
               onClick={() => setShowCheckout(true)}
               data-testid="upgrade-cta"
               disabled={paying}
-              className="mt-6 w-full rounded-xl border-b-4 border-amber-600 bg-amber-400 px-6 py-3.5 text-lg font-bold text-white transition hover:bg-amber-500 active:translate-y-1 active:border-b-0 disabled:opacity-50"
+              animate={{ boxShadow: ["0 0 0 0 rgba(251,191,36,0.5)", "0 0 0 12px rgba(251,191,36,0)", "0 0 0 0 rgba(251,191,36,0)"] }}
+              transition={{ duration: 2, repeat: Infinity, ease: "easeOut" }}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="mt-6 w-full rounded-xl border-b-4 border-amber-600 bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 px-6 py-3.5 text-lg font-extrabold text-white shadow-lg disabled:opacity-50"
             >
-              {paying ? "Processing…" : "Upgrade for ₹99/month"}
-            </button>
+              {paying ? "Processing…" : "Start 7-day free trial"}
+            </motion.button>
           ) : (
             <button
               onClick={cancel}
@@ -137,6 +160,7 @@ export default function Premium() {
               Cancel Premium
             </button>
           )}
+          {!isPremium && <div className="mt-2 text-center text-xs font-bold text-slate-500">Then ₹99/month · cancel anytime</div>}
         </motion.div>
       </div>
 
