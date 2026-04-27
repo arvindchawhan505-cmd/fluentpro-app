@@ -94,8 +94,41 @@
 
 ### Confetti celebrations (added 2026-04-27)
 - `canvas-confetti` library with branded colors (blue/indigo/violet/amber)
-- Triggers: lesson complete (intensity scales with score: small→medium→big), daily check-in submit (small), Premium upgrade (big)
+- Triggers: lesson complete (intensity scales with score: small→medium→big), daily check-in submit (small), Premium upgrade (big), challenge claim (big)
 - Lesson completion banner upgraded to gradient (emerald-blue) with gradient Continue button
+
+### Daily Challenge System (added 2026-04-27)
+- Today's Challenge card on Dashboard with **24h countdown timer**, animated **progress bar**, gradient amber→orange→rose theme, +XP reward badge, urgency dot for ready-to-claim
+- 7 randomly-rotating challenges (deterministic per user/day): vocab, conversation, lesson, pronunciation, writing, grammar, check-in
+- Backend endpoints: `GET /api/challenge/today`, `POST /api/challenge/claim`
+- Auto-incremented metrics from existing endpoints (conversation, grammar, writing, vocab, pronunciation, lessons, check-in)
+- Confetti + XP award on claim
+
+### Level/XP system (added 2026-04-27)
+- 7 tiers: Sprout 🌱 → Learner 📘 → Speaker 🎙️ → Storyteller 🎬 → Polyglot 🌍 → Maven 💎 → Legend 👑
+- `level_from_xp()` returns level number, name, emoji, progress to next tier, and unlock perks (4 unlockable perks at L2/L3/L4/L5)
+- `<LevelBadge>` component with gradient circle, level emoji, level number tag, mini progress bar to next tier
+- Visible on Dashboard sidebar (small) + Profile page (large with full perks list showing locked/unlocked state)
+- Returned in `/api/progress.level_info`
+
+### Premium page conversion polish (added 2026-04-27)
+- "**LIMITED LAUNCH OFFER**" banner: ₹199 → ~~₹199~~ ₹99/month, "7-day free trial", **SAVE 50%** badge in amber→rose gradient
+- "**LAUNCH PRICE**" red badge next to ₹99 price
+- "**Start 7-day free trial**" CTA with continuous animated pulse halo
+- Subtitle: "7-day free trial, then ₹99/month"
+- Subtle "Then ₹99/month · cancel anytime" caption under button
+
+### Conversation upgrades (added 2026-04-27)
+- `/api/conversation` now returns structured `{reply, corrections:[{original,correction,note}], suggestion}` JSON (best-effort parse with text fallback)
+- UI renders **per-message correction chips** (red strikethrough → green) in an amber callout box
+- UI renders **"💡 Better way to say it"** indigo callout below each Coach Ada reply when suggestion present
+- Voice reply via existing TTS Listen button (gradient styling, indigo on hover)
+- All conversation chrome (scenario picker, send button, focus rings) repainted to brand gradient
+
+### Test results
+- Backend iter-1: 18/18 ✅ · iter-2: 15/15 ✅ · iter-3: 12/12 ✅ · iter-4: 13/13 ✅ · iter-5: 14/14 ✅
+- **Total: 72/72 backend tests passing**
+- 1 critical fix during iter-5: `/api/writing/feedback` now correctly increments `writing_submitted` metric for daily challenge progress
 
 ### Test results
 - Backend iter-1: 18/18 ✅ · iter-2: 15/15 ✅ · iter-3 (goal onboarding): 12/12 ✅

@@ -439,6 +439,7 @@ async def writing_feedback(body: WritingRequest, request: Request,
         logger.exception("writing parse error")
         raise HTTPException(status_code=500, detail=f"LLM parse error: {e}")
     await update_streak_and_xp(user.user_id, 15)
+    await increment_challenge_metric(user.user_id, "writing_submitted", 1)
     return data
 
 
