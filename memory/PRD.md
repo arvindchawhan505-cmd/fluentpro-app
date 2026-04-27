@@ -37,26 +37,32 @@
 - `POST /api/vocabulary/daily` (cached per user/day/level), `POST /api/vocabulary/quiz`
 - `POST /api/pronunciation/sentence`, `POST /api/pronunciation/check` (multipart audio → Whisper + LLM scoring)
 - `POST /api/tts` (OpenAI tts-1, voice=nova, mp3 stream)
-- `GET /api/lessons` (12 lessons, B/I/A), `GET /api/lessons/{id}` (LLM-generated content cached), `POST /api/lessons/complete`
+- `GET /api/lessons` (12 lessons, B/I/A, with `locked` flag), `GET /api/lessons/{id}` (LLM-generated content cached, gated by Premium for I/A), `POST /api/lessons/complete`
 - `GET /api/progress`, `POST /api/profile/level`
 - Streak + XP automatically updated on every practice action
 
+### Premium tier (added 2026-04-27)
+- `GET /api/billing/status` → returns is_premium, price_inr=99, daily limits + usage
+- `POST /api/billing/upgrade` (**MOCKED Razorpay** — instantly grants 30 days Premium; replace with real `razorpay.utility.verify_payment_signature` call to go live)
+- `POST /api/billing/cancel`
+- Free-tier daily limits (per user, reset daily): 5 conversation msgs, 3 grammar, 3 writing, 5 pronunciation. Vocabulary + Beginner lessons unlimited.
+- 402 responses with `{code: free_limit_reached | premium_required}` trigger an in-app upgrade prompt modal on the frontend.
+
+### Streak share cards (added 2026-04-27)
+- `GET /api/share/streak` → returns name, streak, xp, level, completed_lessons, share_text
+- Frontend `<ShareStreakModal>` renders a 1080×1080 canvas card with 3 themes (sunrise/ocean/mint), supports:
+  - Native Web Share API (image + text on mobile)
+  - WhatsApp deep link (`wa.me?text=...`)
+  - Instagram (saves image, prompts user to attach in app)
+  - Direct PNG download
+
 ### Frontend Pages
-- Landing (hero + features grid + Google login)
-- AuthCallback (synchronous hash detection, race-safe)
-- Dashboard (welcome card, streak/XP/level, 4 quick actions, lessons path with progress bar)
-- Lessons list (filter by level)
-- Lesson detail (intro, key points, examples with TTS, MCQ practice, complete)
-- Conversation (5 scenarios, chat UI, listen-to-reply via TTS)
-- Grammar (text input, score + per-issue corrections + rewrite)
-- Vocabulary (daily flashcards + quiz, level switcher, TTS)
-- Pronunciation (record via MediaRecorder → Whisper → score + tip)
-- Writing (prompt + textarea → 4-axis scores + strengths/improvements + rewrite)
-- Profile (avatar, level switcher, sign out)
+- Landing, AuthCallback, Dashboard (now with **Share my streak** + **Go Premium ₹99/mo** buttons + premium badge in header), Lessons (lock icons + Premium label on I/A), LessonDetail, Conversation, Grammar, Vocabulary, Pronunciation, Writing, Profile, **Premium** (plan compare table + MOCK Razorpay-style checkout modal + cancel)
 
 ### Test results
-- Backend: 100% (18/18 endpoints) via `/app/backend/tests/test_english_coach_api.py`
-- Frontend: smoke screenshots — landing + dashboard verified
+- Backend iteration 1: 18/18 endpoints (100%)
+- Backend iteration 2: 15/15 premium + share + gating tests (100%)
+- Frontend: smoke screenshots — landing, dashboard (with share + premium CTAs), premium page all rendering correctly
 
 ## Backlog / P1
 - [ ] Word streak audio drills (per-word phoneme-level scoring)
