@@ -83,6 +83,20 @@
 - Lessons page: header icon now uses violet→fuchsia gradient; recommended cards have soft blue→violet gradient background and a "For your goal" badge.
 - **Animated streak flame** (`<StreakFlame>` component): when streak ≥ 7 days, the flame icon gets an orange→rose glow, ping animation, and "On fire" label on Streak stats.
 
+### Daily Goal Check-in (added 2026-04-27)
+- Dashboard card **"Daily check-in · 60 sec"** with a goal-tailored prompt + textarea + Submit
+- Backend: `GET /api/checkin/today`, `POST /api/checkin/respond`
+- Deterministic prompt per user/day via SHA-256 hash → seed pool selection (5 prompts × 4 goals = 20 prompts, looping by user/date)
+- Coach Ada returns `{reply, corrected, score, highlight}` JSON; awards +15 XP and increments streak on first completion
+- One submit per day (idempotent — second submit returns same feedback)
+- Confetti celebration on successful submit (small intensity)
+- Backend tests: 13/13 PASS ✅
+
+### Confetti celebrations (added 2026-04-27)
+- `canvas-confetti` library with branded colors (blue/indigo/violet/amber)
+- Triggers: lesson complete (intensity scales with score: small→medium→big), daily check-in submit (small), Premium upgrade (big)
+- Lesson completion banner upgraded to gradient (emerald-blue) with gradient Continue button
+
 ### Test results
 - Backend iter-1: 18/18 ✅ · iter-2: 15/15 ✅ · iter-3 (goal onboarding): 12/12 ✅
 

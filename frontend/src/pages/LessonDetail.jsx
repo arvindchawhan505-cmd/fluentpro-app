@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { CheckCircle, XCircle, CaretLeft, SpeakerHigh, Trophy } from "@phosphor-icons/react";
+import { celebrate } from "@/lib/celebrate";
 
 export default function LessonDetail() {
   const { id } = useParams();
@@ -38,6 +39,8 @@ export default function LessonDetail() {
       await api.post("/lessons/complete", { lesson_id: id, score });
       await refreshUser();
     } finally { setSubmitted(true); }
+    // Celebrate proportional to score
+    setTimeout(() => celebrate({ intensity: score >= 80 ? "big" : score >= 50 ? "medium" : "small" }), 200);
     return { correct, total, score };
   };
 
@@ -132,10 +135,10 @@ export default function LessonDetail() {
               Finish lesson
             </button>
           ) : (
-            <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-green-50 p-4 text-green-800" data-testid="lesson-complete-banner">
-              <Trophy weight="duotone" size={28} className="text-amber-500" />
+            <div className="flex flex-wrap items-center gap-3 rounded-2xl border-2 border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-blue-50 p-4 text-emerald-800" data-testid="lesson-complete-banner">
+              <Trophy weight="fill" size={28} className="text-amber-500" />
               <div className="font-extrabold">You scored {correctCount} / {content.practice_questions.length} — +25 XP</div>
-              <button onClick={() => navigate("/lessons")} className="ml-auto rounded-xl border-2 border-green-300 bg-white px-4 py-2 font-bold text-green-700">Continue</button>
+              <button onClick={() => navigate("/lessons")} className="ml-auto rounded-xl border-b-4 border-indigo-700 bg-gradient-to-r from-blue-500 to-violet-500 px-4 py-2 font-bold text-white hover:from-blue-600 hover:to-violet-600 active:translate-y-1 active:border-b-0">Continue</button>
             </div>
           )}
         </div>

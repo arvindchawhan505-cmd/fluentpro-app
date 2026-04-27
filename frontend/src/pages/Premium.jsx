@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { api } from "@/lib/api";
+import { celebrate } from "@/lib/celebrate";
 import { useAuth } from "@/context/AuthContext";
 import { Crown, CheckCircle, Sparkle, Lightning, Lock, X } from "@phosphor-icons/react";
 
@@ -39,6 +40,7 @@ export default function Premium() {
       setStatus((s) => ({ ...s, ...data }));
       await refreshUser();
       setSuccess(true);
+      celebrate({ intensity: "big" });
     } finally {
       setPaying(false);
     }

@@ -786,12 +786,14 @@ CHECKIN_SEEDS = {
 }
 
 
+import hashlib
+
 def _checkin_prompt_for(user: "User") -> str:
     today = date.today().isoformat()
     goal = user.goal or "casual"
     seeds = CHECKIN_SEEDS.get(goal, CHECKIN_SEEDS["casual"])
-    # Deterministic per user/day
-    h = abs(hash(f"{user.user_id}_{today}")) % len(seeds)
+    digest = hashlib.sha256(f"{user.user_id}_{today}".encode()).hexdigest()
+    h = int(digest, 16) % len(seeds)
     return seeds[h]
 
 
