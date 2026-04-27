@@ -40,6 +40,7 @@ export default function Profile() {
       <div className="relative overflow-hidden rounded-3xl border-2 border-slate-100 bg-gradient-to-br from-blue-500 via-indigo-500 to-violet-500 p-6 text-white shadow-lg">
         <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
         <div className="absolute -bottom-10 -left-6 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
+        <img src="/logo.png" alt="" aria-hidden="true" className="pointer-events-none absolute -bottom-4 -right-4 hidden h-28 w-28 opacity-20 md:block" />
         <div className="relative flex flex-wrap items-center gap-4">
           {user?.picture ? (
             <img src={user.picture} alt="avatar" className="h-20 w-20 rounded-full border-4 border-white/40 object-cover" />

@@ -1,19 +1,25 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+    <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#3B82F6"/>
       <stop offset="0.55" stop-color="#6366F1"/>
-      <stop offset="1" stop-color="#A855F7"/>
-    </linearGradient>
-    <linearGradient id="g2" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.85"/>
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#8B5CF6"/>
     </linearGradient>
   </defs>
-  <rect x="2" y="2" width="60" height="60" rx="16" fill="url(#g)"/>
-  <path d="M14 22c0-3.3 2.7-6 6-6h24c3.3 0 6 2.7 6 6v14c0 3.3-2.7 6-6 6H30l-7 7v-7h-3c-3.3 0-6-2.7-6-6V22z" fill="url(#g2)"/>
-  <circle cx="26" cy="29" r="2" fill="#6366F1"/>
-  <circle cx="32" cy="29" r="2" fill="#6366F1"/>
-  <circle cx="38" cy="29" r="2" fill="#6366F1"/>
-  <path d="M50 12l1.5 3.5L55 17l-3.5 1.5L50 22l-1.5-3.5L45 17l3.5-1.5z" fill="#FBBF24"/>
+
+  <!-- chat bubble shape with bottom-left tail -->
+  <path d="M124 40 H388 a84 84 0 0 1 84 84 V288 a84 84 0 0 1 -84 84 H224 l-72 96 a8 8 0 0 1 -14 -7 l16 -89 H124 a84 84 0 0 1 -84 -84 V124 a84 84 0 0 1 84 -84 z" fill="url(#bg)"/>
+
+  <!-- Stylized F -->
+  <g fill="#FFFFFF">
+    <rect x="160" y="120" width="180" height="44" rx="14"/>
+    <rect x="160" y="120" width="44" height="220" rx="14"/>
+    <rect x="160" y="200" width="140" height="40" rx="12"/>
+  </g>
+
+  <!-- Two sparkles (top-right) -->
+  <g fill="#FFFFFF">
+    <path d="M376 96 l8 22 22 8 -22 8 -8 22 -8 -22 -22 -8 22 -8 z"/>
+    <path d="M412 156 l5 14 14 5 -14 5 -5 14 -5 -14 -14 -5 14 -5 z" opacity="0.9"/>
+  </g>
 </svg>

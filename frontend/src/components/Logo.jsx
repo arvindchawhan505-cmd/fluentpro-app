@@ -3,23 +3,19 @@ import React from "react";
 export default function Logo({ size = 36, withText = true, textClassName = "" }) {
   return (
     <span className="inline-flex items-center gap-2">
-      <span
-        className="relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-2xl shadow-[inset_0_-3px_0_rgba(0,0,0,0.18)]"
-        style={{
-          width: size,
-          height: size,
-          background: "linear-gradient(135deg, #3B82F6 0%, #6366F1 55%, #A855F7 100%)",
-        }}
-        aria-hidden="true"
-      >
-        <img src="/logo.svg" alt="" className="h-full w-full object-contain" />
-      </span>
+      <img
+        src="/logo.png"
+        alt="FluentPro"
+        className="shrink-0 object-contain"
+        style={{ width: size, height: size }}
+      />
       {withText && (
         <span
-          className={`bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 bg-clip-text font-extrabold tracking-tight text-transparent ${textClassName}`}
+          className={`font-extrabold tracking-tight ${textClassName}`}
           style={{ fontFamily: "Nunito, sans-serif" }}
         >
-          FluentPro
+          <span className="text-slate-900">Fluent</span>
+          <span className="bg-gradient-to-r from-blue-500 to-violet-600 bg-clip-text text-transparent">Pro</span>
         </span>
       )}
     </span>

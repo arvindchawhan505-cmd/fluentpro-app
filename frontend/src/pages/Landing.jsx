@@ -25,7 +25,7 @@ export default function Landing() {
       <div className="pointer-events-none absolute -right-32 top-40 h-[380px] w-[380px] rounded-full bg-gradient-to-br from-fuchsia-300/30 to-amber-300/30 blur-3xl" />
 
       <header className="relative mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
-        <Logo size={40} textClassName="text-xl" />
+        <Logo size={44} textClassName="text-2xl" />
         <button
           data-testid="header-login-button"
           onClick={handleLogin}
@@ -83,32 +83,44 @@ export default function Landing() {
           <div className="absolute -left-6 -top-6 h-24 w-24 rounded-full bg-violet-300/50 blur-2xl" />
           <div className="absolute -right-8 -bottom-6 h-32 w-32 rounded-full bg-blue-300/50 blur-2xl" />
 
-          <div className="relative overflow-hidden rounded-3xl border-2 border-slate-100 bg-white p-6 shadow-2xl shadow-indigo-500/10">
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-blue-100 to-violet-100 text-indigo-600">
-                <ChatsCircle weight="duotone" size={24} />
+          {/* Login card — logo prominently above Continue with Google */}
+          <div className="relative overflow-hidden rounded-3xl border-2 border-slate-100 bg-white p-8 shadow-2xl shadow-indigo-500/15">
+            <div className="flex flex-col items-center text-center">
+              <img src="/logo.png" alt="FluentPro" className="h-16 w-16 object-contain" data-testid="login-logo" />
+              <div className="mt-3 text-2xl font-extrabold tracking-tight" style={{ fontFamily: "Nunito, sans-serif" }}>
+                <span className="text-slate-900">Fluent</span>
+                <span className="bg-gradient-to-r from-blue-500 to-violet-600 bg-clip-text text-transparent">Pro</span>
               </div>
-              <div>
-                <div className="font-extrabold text-slate-900">Coach Ada</div>
-                <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Live chat demo</div>
-              </div>
-              <div className="ml-auto flex items-center gap-1 rounded-full bg-green-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-green-700">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" /> Online
-              </div>
+              <div className="mt-1 text-sm font-semibold text-slate-500">Speak English. Grow Confidently.</div>
+
+              <button
+                data-testid="card-login-button"
+                onClick={handleLogin}
+                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl border-b-4 border-indigo-700 bg-gradient-to-r from-blue-500 to-violet-500 px-6 py-3.5 text-base font-bold text-white transition hover:from-blue-600 hover:to-violet-600 active:translate-y-1 active:border-b-0"
+              >
+                <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <path fill="#fff" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.71v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.61z"/>
+                  <path fill="#fff" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.83.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A8.997 8.997 0 0 0 9 18z" opacity=".9"/>
+                  <path fill="#fff" d="M3.97 10.71A5.4 5.4 0 0 1 3.68 9c0-.59.1-1.16.29-1.71V4.96H.96A8.997 8.997 0 0 0 0 9c0 1.45.35 2.82.96 4.04l3.01-2.33z" opacity=".75"/>
+                  <path fill="#fff" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A8.997 8.997 0 0 0 .96 4.96l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z" opacity=".85"/>
+                </svg>
+                Continue with Google
+              </button>
+              <div className="mt-2 text-xs font-semibold text-slate-400">Free to start · No credit card required</div>
             </div>
 
-            <div className="mt-5 space-y-3">
-              <div className="ml-auto max-w-[80%] rounded-2xl rounded-tr-md bg-gradient-to-br from-blue-500 to-violet-500 p-3 text-white">
-                Yesterday I go to the park with friends.
+            <div className="my-6 flex items-center gap-3">
+              <div className="h-px flex-1 bg-slate-100" />
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Live demo</span>
+              <div className="h-px flex-1 bg-slate-100" />
+            </div>
+
+            <div className="space-y-2">
+              <div className="ml-auto max-w-[85%] rounded-2xl rounded-tr-md bg-gradient-to-br from-blue-500 to-violet-500 p-2.5 text-sm text-white">
+                Yesterday I go to the park.
               </div>
-              <div className="max-w-[85%] rounded-2xl rounded-tl-md border-2 border-slate-100 bg-slate-50 p-3 text-slate-800">
-                Nice! Small fix: <b>I went</b> (→ past tense). What did you do there?
-              </div>
-              <div className="ml-auto max-w-[80%] rounded-2xl rounded-tr-md bg-gradient-to-br from-blue-500 to-violet-500 p-3 text-white">
-                We played football and eat ice cream.
-              </div>
-              <div className="max-w-[85%] rounded-2xl rounded-tl-md border-2 border-slate-100 bg-slate-50 p-3 text-slate-800">
-                Sounds fun! <b>ate</b> (→ past of "eat"). Which flavor is your favorite?
+              <div className="max-w-[88%] rounded-2xl rounded-tl-md border-2 border-slate-100 bg-slate-50 p-2.5 text-sm text-slate-800">
+                Nice! <b>I went</b> (→ past tense). What did you do there?
               </div>
             </div>
           </div>

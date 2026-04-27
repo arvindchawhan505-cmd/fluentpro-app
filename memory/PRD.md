@@ -67,9 +67,11 @@
 ### Branding (added 2026-04-27)
 - **App renamed to "FluentPro"** across all surfaces
 - Browser tab title: `FluentPro - Speak English Confidently`
-- Custom SVG logo (`/logo.svg`) + favicon (`/favicon.svg`) — speech-bubble + sparkle in blue→indigo→violet gradient
-- New shared `<Logo>` component used in AppShell + Landing
-- Color theme refresh: brand CTAs and primary surfaces now use `from-blue-500 to-violet-500` gradient (replaced sky-400 single-tone). Active nav, Continue button, progress bar, FluentPro wordmark all gradient
+- **Custom-rendered SVG logo** (`/logo.svg`) — chat bubble + stylized white "F" + two sparkles in blue→indigo→violet gradient. Built from scratch matching the brand sheet style.
+- Generated raster assets: `/logo.png`, `/logo-512.png`, `/apple-touch-icon.png` (180×180), and multi-size `/favicon.ico` (16/32/48/64/128/256)
+- New shared `<Logo>` component renders the PNG icon + the "Fluent**Pro**" wordmark (Fluent = slate-900, Pro = blue→violet gradient)
+- Logo placement: AppShell header (top-left, 36px), Landing login card (centered, 64px above "Continue with Google"), Profile gradient hero (decorative bottom-right, 112px @ 20% opacity), favicon
+- Color theme refresh: brand CTAs and primary surfaces use `from-blue-500 to-violet-500` gradient. Active nav, Continue button, progress bar, FluentPro wordmark all gradient
 - Backend root message + streak share text updated to "FluentPro"
 
 ### Goal-based onboarding & polish (added 2026-04-27)
