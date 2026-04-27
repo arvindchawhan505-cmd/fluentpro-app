@@ -22,11 +22,17 @@ export default function UpgradeNudgeModal() {
     if (localStorage.getItem(DISMISS_KEY) === todayStr()) return;
     (async () => {
       try {
-        const { data } = await api.get("/onboarding/quest");
-        const eligible = (data.days_since_signup ?? 0) >= 3 || data.claimed === true;
-        if (eligible) {
-          setTimeout(() => setOpen(true), 1200);
-        }
+        const [{ data: quest }, dpRes] = await Promise.all([
+          api.get("/onboarding/quest"),
+          api.get("/daily-path").catch(() => ({ data: null })),
+        ]);
+        const eligible = (quest.days_since_signup ?? 0) >= 3 || quest.claimed === true;
+        if (!eligible) return;
+        // Don't compete with the Daily Path card — wait until the user has either
+        // completed today's path or it's already been claimed before nudging.
+        const dp = dpRes?.data;
+        if (dp && !dp.claimed && !dp.completed) return;
+        setTimeout(() => setOpen(true), 2500);
       } catch { /* noop */ }
     })();
   }, [user]);

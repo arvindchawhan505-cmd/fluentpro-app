@@ -166,6 +166,24 @@
 - [ ] Writing essay history & comparison
 - [ ] Email summary of weekly progress
 
+### Simplified Day-1 Onboarding (added 2026-04-27)
+- New users (`has_completed_day1=false`) see ONLY a "Start Today's Practice" hero card on the dashboard — all other sections are hidden to remove choice paralysis.
+- New `/start-practice` 3-step flow (data-testid `practice-step-1/2/3`): Chat → Vocabulary → Grammar with progress bar, "Skip for now", and a celebration success modal (+10 XP, +1 streak day).
+- Backend: `POST /api/onboarding/day1/complete` — idempotent, awards 10 XP via `update_streak_and_xp`, flips `has_completed_day1=true`.
+- AppShell sidebar relabelled (Today / Lessons / Speak with AI / Learn Words / Pronunciation / Improve Writing / Fix My English) and a critical undefined-`nav` bug fixed.
+
+### Daily Learning Path & Continue Learning (added 2026-04-27)
+- New `<DailyPathCard>` on the returning-user dashboard: 3 micro-tasks for today driven by the user's `goal` (4 templates: job_interview / travel / ielts / casual). Animated SVG ring shows `tasks_done/total`, each task tile has a per-task progress bar + "Start →" link.
+- Bonus +30 XP claim once all 3 tasks are done (idempotent, gated server-side).
+- New `<ContinueLearningBanner>` mounted globally via `<PracticeNextStep>` on practice pages only — pulls from `/daily-path` and surfaces the next non-current task with a "Continue →" CTA so users flow from one activity to the next without bouncing back to the dashboard.
+- Backend: `GET /api/daily-path` (snapshots a baseline of `user_metrics` on the first call of the day so progress only counts today's activity), `POST /api/daily-path/claim`. New collection `db.daily_paths` keyed by `(user_id, date)`.
+- UpgradeNudgeModal now waits until today's path is complete or claimed before showing, so it doesn't compete with the daily habit loop.
+
+### Test results
+- Backend iter-8: 19/19 ✅ (test_daily_path_and_onboarding.py — covers day1 idempotency, daily-path templates per goal, baseline stability, activity-driven progress, claim 400/200/idempotent, and regression on /auth/me /progress /lessons /checkin /challenge /onboarding/quest /referral /vocabulary /pronunciation)
+- Frontend iter-8: 100% — DailyPathCard renders 3-tile layout for returning users, ContinueLearningBanner appears on /conversation but not /dashboard or /start-practice, sidebar labels match spec, /start-practice 3-step flow + success modal verified.
+- **Total: 117/117 backend tests passing across 8 iterations**
+
 ## P2
 - [ ] Leaderboard
 - [ ] Native mobile shell (PWA)
