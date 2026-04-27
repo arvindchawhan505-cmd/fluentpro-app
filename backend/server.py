@@ -1443,8 +1443,13 @@ async def ensure_indexes():
         await db.user_sessions.create_index("session_token", unique=True)
         await db.users.create_index("referral_code", sparse=True)
         await db.daily_paths.create_index([("user_id", 1), ("date", 1)], unique=True)
-        # Lazy backfill: ensure every existing user has referral_code stored
-        async for u in db.users.find({"referral_code": {"$exists": False}}, {"_id": 0, "user_id": 1}):
+        # Lazy backfill (bounded): ensure existing users have referral_code stored.
+        # Capped per startup to avoid long boot on huge installs; remaining users
+        # get their code on next startup or whenever they hit /referral/me (which
+        # itself derives the code deterministically from user_id).
+        async for u in db.users.find(
+            {"referral_code": {"$exists": False}}, {"_id": 0, "user_id": 1}
+        ).limit(5000):
             await db.users.update_one(
                 {"user_id": u["user_id"]},
                 {"$set": {"referral_code": _make_ref_code(u["user_id"])}},
