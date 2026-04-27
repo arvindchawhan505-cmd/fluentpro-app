@@ -3,9 +3,10 @@ import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import {
   GraduationCap, ChatsCircle, BookBookmark, Microphone, PencilSimpleLine,
-  Notebook, User, SignOut, Flame, Star, Crown,
+  Notebook, User, SignOut, Star, Crown,
 } from "@phosphor-icons/react";
 import Logo from "@/components/Logo";
+import StreakFlame from "@/components/StreakFlame";
 
 const nav = [
   { to: "/dashboard", label: "Dashboard", icon: GraduationCap, testId: "nav-dashboard" },
@@ -37,7 +38,7 @@ export default function AppShell({ children }) {
 
           <div className="flex items-center gap-3">
             <div className="hidden items-center gap-2 rounded-full bg-orange-50 px-3 py-1.5 text-orange-700 sm:flex" data-testid="streak-badge">
-              <Flame weight="duotone" size={18} />
+              <StreakFlame streak={user?.streak || 0} size={18} />
               <span className="text-sm font-bold">{user?.streak || 0}</span>
             </div>
             <div className="hidden items-center gap-2 rounded-full bg-amber-50 px-3 py-1.5 text-amber-700 sm:flex" data-testid="xp-badge">

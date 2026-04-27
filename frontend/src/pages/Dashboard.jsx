@@ -4,9 +4,10 @@ import { motion } from "framer-motion";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import {
-  Flame, Star, Trophy, ChatsCircle, Microphone, PencilSimpleLine,
+  Star, Trophy, ChatsCircle, Microphone, PencilSimpleLine,
   BookBookmark, Notebook, ArrowRight, ShareNetwork, Crown,
 } from "@phosphor-icons/react";
+import StreakFlame from "@/components/StreakFlame";
 import ShareStreakModal from "@/components/ShareStreakModal";
 
 const quickActions = [
@@ -78,7 +79,7 @@ export default function Dashboard() {
         </div>
 
         <div className="md:col-span-4 grid grid-cols-3 gap-3 md:grid-cols-1">
-          <Stat icon={Flame} label="Streak" value={progress?.streak ?? 0} suffix="days" color="text-orange-600 bg-orange-50" testId="stat-streak" />
+          <StreakStat streak={progress?.streak ?? 0} testId="stat-streak" />
           <Stat icon={Star} label="XP" value={progress?.xp ?? 0} color="text-amber-600 bg-amber-50" testId="stat-xp" />
           <Stat icon={Trophy} label="Level" value={progress?.level ?? "—"} color="text-violet-600 bg-violet-50" testId="stat-level" />
         </div>
@@ -169,6 +170,21 @@ function Stat({ icon: Icon, label, value, suffix, color, testId }) {
         <div className="text-lg font-extrabold text-slate-900">
           {value}{suffix ? <span className="ml-1 text-sm font-bold text-slate-500">{suffix}</span> : null}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function StreakStat({ streak, testId }) {
+  const hot = streak >= 7;
+  return (
+    <div className={`relative flex items-center gap-3 overflow-hidden rounded-2xl border-2 p-4 transition ${hot ? "border-orange-200 bg-gradient-to-br from-amber-50 via-white to-rose-50" : "border-slate-100 bg-white"}`} data-testid={testId}>
+      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50 text-orange-600">
+        <StreakFlame streak={streak} size={22} />
+      </div>
+      <div>
+        <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Streak {hot && "· On fire"}</div>
+        <div className="text-lg font-extrabold text-slate-900">{streak}<span className="ml-1 text-sm font-bold text-slate-500">days</span></div>
       </div>
     </div>
   );

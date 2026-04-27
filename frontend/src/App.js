@@ -6,6 +6,7 @@ import AuthCallback from "@/pages/AuthCallback";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/components/AppShell";
 import PremiumPrompt from "@/components/PremiumPrompt";
+import GoalOnboardingModal from "@/components/GoalOnboardingModal";
 import Landing from "@/pages/Landing";
 import Dashboard from "@/pages/Dashboard";
 import Conversation from "@/pages/Conversation";
@@ -23,6 +24,7 @@ function Protected({ children }) {
     <ProtectedRoute>
       <AppShell>{children}</AppShell>
       <PremiumPrompt />
+      <GoalOnboardingModal />
     </ProtectedRoute>
   );
 }

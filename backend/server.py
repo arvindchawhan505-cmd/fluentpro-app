@@ -47,6 +47,31 @@ class User(BaseModel):
     completed_lesson_ids: List[str] = []
     is_premium: bool = False
     premium_until: Optional[str] = None
+    goal: Optional[str] = None
+
+
+GOALS = {
+    "job_interview": {
+        "label": "Ace job interviews",
+        "tutor_persona": "You are Coach Ada, helping the learner prepare for English job interviews. Steer toward professional vocabulary, behavioural questions (STAR), and clear, confident answers. Keep replies 1-3 sentences. Gently correct grammar inline using (→ correction).",
+        "lesson_priority": ["i4", "a2", "i1", "a1", "a4", "i3"],
+    },
+    "travel": {
+        "label": "Travel with confidence",
+        "tutor_persona": "You are Coach Ada, helping the learner travel comfortably in English. Focus on airports, hotels, restaurants, asking for directions, polite phrases. 1-3 sentences. Gently correct grammar inline using (→ correction).",
+        "lesson_priority": ["b4", "b1", "i2", "b2", "i1"],
+    },
+    "ielts": {
+        "label": "Prepare for IELTS",
+        "tutor_persona": "You are Coach Ada, an IELTS coach. Push for richer vocabulary, complex sentence structures, cohesive devices, and academic register. Give brief feedback on band-level after each turn. 1-3 sentences. Correct grammar inline using (→ correction).",
+        "lesson_priority": ["a4", "a1", "a2", "a3", "i3", "i1"],
+    },
+    "casual": {
+        "label": "Casual speaking",
+        "tutor_persona": "You are Coach Ada, a friendly conversation partner. Keep things light and natural — small talk, hobbies, daily life. 1-3 sentences. Gently correct grammar inline using (→ correction).",
+        "lesson_priority": ["b1", "b3", "i2", "a3", "i1"],
+    },
+}
 
 
 # ---------- Free-tier limits ----------
@@ -234,6 +259,7 @@ async def process_session(request: Request, response: Response):
             "completed_lesson_ids": [],
             "is_premium": False,
             "premium_until": None,
+            "goal": None,
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
 
@@ -291,6 +317,16 @@ SCENARIO_PROMPTS = {
 }
 
 
+def build_system_for_user(user: "User", scenario: str) -> str:
+    base = SCENARIO_PROMPTS.get(scenario, SCENARIO_PROMPTS["general"])
+    if scenario == "general" and user.goal and user.goal in GOALS:
+        return GOALS[user.goal]["tutor_persona"]
+    if user.goal and user.goal in GOALS:
+        base += f" The learner's overall goal is: {GOALS[user.goal]['label']}. Subtly tailor examples and follow-up questions to that goal."
+    base += f" Learner level: {user.level}."
+    return base
+
+
 @api_router.post("/conversation")
 async def conversation(body: ConversationRequest, request: Request,
                        session_token: Optional[str] = Cookie(None),
@@ -298,7 +334,7 @@ async def conversation(body: ConversationRequest, request: Request,
     user = await get_current_user(request, session_token, authorization)
     await check_and_increment_usage(user.user_id, "conversation", is_user_premium(user))
     scenario = body.scenario or "general"
-    system_msg = SCENARIO_PROMPTS.get(scenario, SCENARIO_PROMPTS["general"])
+    system_msg = build_system_for_user(user, scenario)
     chat = build_chat(f"{user.user_id}_{body.session_id}", system_msg)
 
     history = await db.conversations.find(
@@ -582,11 +618,18 @@ async def list_lessons(request: Request,
     user = await get_current_user(request, session_token, authorization)
     completed = set(user.completed_lesson_ids or [])
     premium = is_user_premium(user)
-    return {"lessons": [{
+    items = [{
         **l,
         "completed": l["id"] in completed,
         "locked": (not premium) and l["level"] != "Beginner",
-    } for l in LESSONS]}
+        "recommended": False,
+    } for l in LESSONS]
+    if user.goal and user.goal in GOALS:
+        priority = GOALS[user.goal]["lesson_priority"]
+        for it in items:
+            if it["id"] in priority:
+                it["recommended"] = True
+    return {"lessons": items, "goal": user.goal}
 
 
 @api_router.get("/lessons/{lesson_id}")
@@ -688,6 +731,26 @@ async def set_level(body: SetLevelRequest, request: Request,
         raise HTTPException(status_code=400, detail="Invalid level")
     await db.users.update_one({"user_id": user.user_id}, {"$set": {"level": body.level}})
     return {"level": body.level}
+
+
+class SetGoalRequest(BaseModel):
+    goal: str
+
+
+@api_router.post("/profile/goal")
+async def set_goal(body: SetGoalRequest, request: Request,
+                   session_token: Optional[str] = Cookie(None),
+                   authorization: Optional[str] = Header(None)):
+    user = await get_current_user(request, session_token, authorization)
+    if body.goal not in GOALS:
+        raise HTTPException(status_code=400, detail="Invalid goal")
+    await db.users.update_one({"user_id": user.user_id}, {"$set": {"goal": body.goal}})
+    return {"goal": body.goal, "label": GOALS[body.goal]["label"]}
+
+
+@api_router.get("/profile/goals")
+async def list_goals():
+    return {"goals": [{"key": k, "label": v["label"]} for k, v in GOALS.items()]}
 
 
 # ---------- Billing (MOCKED — no real Razorpay payment) ----------

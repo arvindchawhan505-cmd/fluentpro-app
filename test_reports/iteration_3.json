@@ -1,0 +1,39 @@
+{
+  "summary": "Iteration 3 backend-only testing of goal-based onboarding for FluentPro Coach Ada. 12 pytest cases in /app/backend/tests/test_goal_onboarding.py all PASSED on REACT_APP_BACKEND_URL (10s). Covered GET /api/profile/goals (4 keys: job_interview/travel/ielts/casual), POST /api/profile/goal invalid->400, valid job_interview->200 with correct label, /api/auth/me reflecting goal, /api/lessons including top-level 'goal' field + per-lesson 'recommended' boolean (verified exact priority sets for job_interview {i4,a2,i1,a1,a4,i3} and travel {b4,b1,i2,b2,i1}), travel intermediate i1 still locked but recommended=true, ielts general conversation reply, casual scenario=restaurant reply (LLM-backed, ~5-10s each), regression on /api/billing/status, /api/share/streak, /api/lessons/b1, and lessons-with-no-goal returning all recommended=false. State reset before+after suite (goal=null, usage_logs cleared, premium false).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_goal_onboarding.py",
+    "/app/backend/tests/test_premium_and_share.py",
+    "/app/backend/tests/test_english_coach_api.py",
+    "/app/test_reports/pytest/pytest_iter3.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "GOALS dict and SCENARIO_PROMPTS are tightly coupled in server.py — when scenario=='general' and a goal exists, GOALS persona fully replaces base; otherwise base + appended goal context. Logic is correct but could benefit from a unit test isolating build_system_for_user() to lock behaviour for future refactors.",
+    "/api/profile/goals is unauthenticated — currently fine (static data) but consider attaching auth for consistency with the rest of /api/profile/*.",
+    "GOALS lesson_priority lists are not validated against LESSONS at startup; a typo (e.g. 'i5') would silently never match. Add a sanity assert at module load: all(p in {l['id'] for l in LESSONS} for g in GOALS.values() for p in g['lesson_priority']).",
+    "server.py is now ~850 lines — strongly recommend splitting into routers (auth, profile, lessons, billing, llm) before adding more onboarding steps.",
+    "User.goal has no enum/Literal constraint on the Pydantic model — only the POST endpoint validates. If the DB ever has a stale value, /api/auth/me will still return it. Consider Optional[Literal['job_interview','travel','ielts','casual']]."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_goal_onboarding.py"
+  ],
+  "success_rate": {
+    "backend": "100% (12/12)",
+    "frontend": "not tested (backend-only request)"
+  },
+  "test_credentials": "Bearer test_session_english_coach_v1 (still valid). User: test-user-english-coach. Left clean: goal=null, usage_logs empty, non-premium.",
+  "seed_data_creation": "Module-scoped fixture resets goal=null, is_premium=false, premium_until=null, and clears usage_logs for test user before+after suite via mongosh.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Three test files now exist: test_english_coach_api.py (core 17 endpoints), test_premium_and_share.py (premium tier + sharing), test_goal_onboarding.py (NEW iter3 — goal onboarding + recommended lessons). All three reset critical state. Run all: pytest /app/backend/tests/ -v. Goal feature is wired into build_system_for_user(): when scenario=='general' AND goal set, GOALS persona REPLACES base; for other scenarios, goal label is appended as soft hint. /api/lessons returns top-level 'goal' + per-lesson 'recommended' bool driven by GOALS[goal].lesson_priority — recommended is independent of locked. To fully reset test user: mongosh --eval \"use('test_database'); db.usage_logs.deleteMany({user_id:'test-user-english-coach'}); db.users.updateOne({user_id:'test-user-english-coach'},{$set:{goal:null,is_premium:false,premium_until:null}});\"",
+  "rca of the issue": "No issues found. Goal-based onboarding endpoints and Coach Ada personalization behave exactly as specified in the review request."
+}
