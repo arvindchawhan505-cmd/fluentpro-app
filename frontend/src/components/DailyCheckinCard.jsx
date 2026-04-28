@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { api } from "@/lib/api";
 import { celebrate } from "@/lib/celebrate";
 import { Sparkle, CheckCircle, Lightning, PaperPlaneRight, Star } from "@phosphor-icons/react";
+import { track, EVT } from "@/lib/analytics";
 
 export default function DailyCheckinCard() {
   const [data, setData] = useState(null);
@@ -28,7 +29,10 @@ export default function DailyCheckinCard() {
       setFeedback({ feedback: data.feedback, response: data.response });
       setData((d) => ({ ...d, completed: true }));
       setText("");
-      if (!data.already_completed) celebrate({ intensity: "small" });
+      if (!data.already_completed) {
+        track(EVT.CHECKIN_COMPLETED);
+        celebrate({ intensity: "small" });
+      }
     } finally { setSubmitting(false); }
   };
 

@@ -8,6 +8,7 @@ import {
 import { api } from "@/lib/api";
 import { celebrate } from "@/lib/celebrate";
 import { useAuth } from "@/context/AuthContext";
+import { track, EVT } from "@/lib/analytics";
 
 const ICONS = {
   chat: ChatsCircle,
@@ -46,7 +47,10 @@ export default function DailyPathCard() {
     setClaiming(true);
     try {
       const { data } = await api.post("/daily-path/claim");
-      if (data?.xp_awarded > 0) celebrate({ intensity: "big" });
+      if (data?.xp_awarded > 0) {
+        track(EVT.DAILY_PATH_CLAIMED, { xp_awarded: data.xp_awarded });
+        celebrate({ intensity: "big" });
+      }
       await refreshUser();
       await load();
     } finally {

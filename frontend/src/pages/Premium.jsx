@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import { celebrate } from "@/lib/celebrate";
 import { useAuth } from "@/context/AuthContext";
 import { Crown, CheckCircle, Sparkle, Lightning, Lock, X } from "@phosphor-icons/react";
+import { track, EVT } from "@/lib/analytics";
 const FEATURES = [
   { name: "AI Conversation practice", free: "5 messages / day", premium: "Unlimited" },
   { name: "Grammar checks", free: "3 / day", premium: "Unlimited" },
@@ -32,12 +33,14 @@ export default function Premium() {
 
   const upgrade = async () => {
     setPaying(true);
+    track(EVT.UPGRADE_CLICKED, { source: "premium_page" });
     try {
       // MOCKED Razorpay-style checkout. Backend mocks the payment success.
       await new Promise((r) => setTimeout(r, 1200));
       const { data } = await api.post("/billing/upgrade");
       setStatus((s) => ({ ...s, ...data }));
       await refreshUser();
+      track(EVT.PREMIUM_PURCHASED, { plan: data?.plan || "monthly", price_inr: 99 });
       setSuccess(true);
       celebrate({ intensity: "big" });
     } finally {

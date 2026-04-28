@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Briefcase, Airplane, GraduationCap, ChatsCircle, Sparkle, X } from "@phosphor-icons/react";
+import { track, EVT } from "@/lib/analytics";
 
 const GOAL_META = {
   job_interview: { icon: Briefcase, gradient: "from-blue-500 to-indigo-500", desc: "Behavioural questions, professional vocab, confident answers." },
@@ -44,6 +45,7 @@ export default function GoalOnboardingModal() {
     setSaving(true);
     try {
       await api.post("/profile/goal", { goal: picked });
+      track(EVT.GOAL_SELECTED, { goal: picked });
       await refreshUser();
       setOpen(false);
     } finally { setSaving(false); }

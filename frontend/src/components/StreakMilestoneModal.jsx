@@ -4,6 +4,7 @@ import { Trophy, X, Sparkle } from "@phosphor-icons/react";
 import { api } from "@/lib/api";
 import { celebrate } from "@/lib/celebrate";
 import { useAuth } from "@/context/AuthContext";
+import { track, EVT } from "@/lib/analytics";
 
 /**
  * Streak Milestone celebration — opens automatically the first time the learner
@@ -30,6 +31,7 @@ export default function StreakMilestoneModal() {
     setClaiming(true);
     try {
       await api.post("/streak/milestone/claim", { days: pending.days });
+      track(EVT.MILESTONE_CLAIMED, { days: pending.days, badge: pending.badge, reward_xp: pending.reward_xp });
       celebrate({ intensity: "big" });
       await refreshUser();
     } catch { /* noop */ }

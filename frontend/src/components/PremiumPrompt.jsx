@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Crown, X } from "@phosphor-icons/react";
 import { useAuth } from "@/context/AuthContext";
+import { track, EVT } from "@/lib/analytics";
 
 export default function PremiumPrompt() {
   const [msg, setMsg] = useState(null);
@@ -41,7 +42,7 @@ export default function PremiumPrompt() {
             <p className="mt-1 font-medium text-slate-600">{msg}</p>
             <button
               data-testid="premium-prompt-cta"
-              onClick={() => { setMsg(null); navigate("/premium"); }}
+              onClick={() => { track(EVT.UPGRADE_CLICKED, { source: "premium_prompt", message: msg }); setMsg(null); navigate("/premium"); }}
               className="mt-4 w-full rounded-xl border-b-4 border-amber-600 bg-amber-400 px-5 py-3 font-bold text-white hover:bg-amber-500"
             >
               See Premium · ₹99/mo

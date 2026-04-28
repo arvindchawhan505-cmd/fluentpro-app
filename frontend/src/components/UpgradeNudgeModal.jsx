@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Crown, Lightning, Sparkle, X, CheckCircle } from "@phosphor-icons/react";
+import { track, EVT } from "@/lib/analytics";
 
 const DISMISS_KEY = "upgrade_nudge_dismissed_date";
 
@@ -82,7 +83,7 @@ export default function UpgradeNudgeModal() {
                 ))}
               </ul>
               <motion.button
-                onClick={() => { dismiss(); navigate("/premium"); }}
+                onClick={() => { track(EVT.UPGRADE_CLICKED, { source: "nudge_modal" }); dismiss(); navigate("/premium"); }}
                 data-testid="upgrade-nudge-cta"
                 animate={{ boxShadow: ["0 0 0 0 rgba(251,191,36,0.5)", "0 0 0 12px rgba(251,191,36,0)", "0 0 0 0 rgba(251,191,36,0)"] }}
                 transition={{ duration: 2, repeat: Infinity, ease: "easeOut" }}

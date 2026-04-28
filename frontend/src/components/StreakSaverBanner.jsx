@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Fire, X, Lightning, ArrowRight } from "@phosphor-icons/react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { track, EVT } from "@/lib/analytics";
 
 const DISMISS_KEY = "streak_saver_dismissed_date";
 
@@ -42,7 +43,7 @@ export default function StreakSaverBanner() {
   const rescue = async () => {
     if (claiming) return;
     setClaiming(true);
-    try { await api.post("/streak/saver/claim"); } catch { /* noop */ }
+    try { await api.post("/streak/saver/claim"); track(EVT.STREAK_SAVED, { streak: state?.streak }); } catch { /* noop */ }
     dismiss();
   };
 

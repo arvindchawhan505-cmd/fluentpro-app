@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { api } from "@/lib/api";
 import { celebrate } from "@/lib/celebrate";
 import { useAuth } from "@/context/AuthContext";
+import { track, EVT } from "@/lib/analytics";
 import {
   ChatsCircle, BookBookmark, Notebook, ArrowRight, CheckCircle, PaperPlaneRight,
   Sparkle, Lightning, Rocket, Microphone, Stop,
@@ -40,6 +41,7 @@ export default function StartPractice() {
   useEffect(() => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     setVoiceSupported(!!SR);
+    track(EVT.DAY1_STARTED);
   }, []);
 
   const startRecording = () => {
@@ -90,6 +92,7 @@ export default function StartPractice() {
       // (i.e. at least 2 user turns — first = greeting/topic-pick, second = real answer)
       // AND Coach Ada isn't still presenting the topic menu.
       if (opts.length === 0 && nextTurnCount >= 2) {
+        track(EVT.DAY1_STEP_COMPLETED, { step: 1, name: "chat" });
         setTimeout(() => setStep(2), 800);
       }
     } catch (e) {
@@ -122,11 +125,15 @@ export default function StartPractice() {
         issues: [{ original: "Me and my friend goes", correction: "My friend and I went", rule: "Subject + tense", explanation: "Use 'I' as subject and past tense 'went'." }],
         score: 75,
       });
-    } finally { setGrammarLoading(false); }
+    } finally {
+      track(EVT.DAY1_STEP_COMPLETED, { step: 3, name: "grammar" });
+      setGrammarLoading(false);
+    }
   };
 
   const finish = async () => {
     try { await api.post("/onboarding/day1/complete"); } catch { /* noop */ }
+    track(EVT.DAY1_COMPLETED, { user_turns_in_chat: userTurnCount });
     await refreshUser();
     celebrate({ intensity: "big" });
     setShowSuccess(true);
@@ -266,7 +273,7 @@ export default function StartPractice() {
               <div className="mt-4 rounded-2xl bg-white/70 p-3 font-medium italic text-slate-700">"{VOCAB_WORD.example}"</div>
             </div>
             <button
-              onClick={() => setStep(3)}
+              onClick={() => { track(EVT.DAY1_STEP_COMPLETED, { step: 2, name: "vocab" }); setStep(3); }}
               data-testid="practice-vocab-understand"
               className="mt-6 inline-flex items-center gap-2 rounded-xl border-b-4 border-amber-700 bg-gradient-to-r from-amber-400 to-orange-500 px-5 py-3 font-bold text-white transition active:translate-y-1 active:border-b-0"
             >

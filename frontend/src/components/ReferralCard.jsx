@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { api } from "@/lib/api";
 import { celebrate } from "@/lib/celebrate";
 import { UsersThree, ShareNetwork, Copy, WhatsappLogo, CheckCircle, Lightning } from "@phosphor-icons/react";
+import { track, EVT } from "@/lib/analytics";
 
 export default function ReferralCard() {
   const [data, setData] = useState(null);
@@ -25,12 +26,14 @@ export default function ReferralCard() {
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(fullLink);
+      track(EVT.REFERRAL_SHARED, { method: "copy" });
       setCopied(true);
       setTimeout(() => setCopied(false), 1600);
     } catch { /* noop */ }
   };
 
   const whatsapp = () => {
+    track(EVT.REFERRAL_SHARED, { method: "whatsapp" });
     const text = encodeURIComponent(`${data.share_text}\n${fullLink}`);
     window.open(`https://wa.me/?text=${text}`, "_blank");
   };
@@ -38,7 +41,7 @@ export default function ReferralCard() {
   const nativeShare = async () => {
     const payload = { title: "Try FluentPro", text: data.share_text, url: fullLink };
     if (navigator.share) {
-      try { await navigator.share(payload); } catch { /* user cancelled */ }
+      try { await navigator.share(payload); track(EVT.REFERRAL_SHARED, { method: "native" }); } catch { /* user cancelled */ }
     } else {
       copy();
     }

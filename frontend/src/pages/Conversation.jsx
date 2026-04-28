@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { PaperPlaneRight, SpeakerHigh, ChatsCircle, Microphone, Stop, Fire, Rocket } from "@phosphor-icons/react";
 import CorrectionCard from "@/components/CorrectionCard";
+import { track, EVT } from "@/lib/analytics";
 
 const SCENARIOS = [
   { key: "general", label: "Free chat" },
@@ -47,6 +48,11 @@ export default function Conversation() {
         options: data.options || [],
         encouragement: data.encouragement || "",
       }]);
+      track(EVT.CONVERSATION_MESSAGE_SENT, {
+        scenario,
+        had_correction: !!data.correction,
+        used_voice: !!textOverride && listening === false, // sent via mic auto-send
+      });
     } catch (e) {
       const status = e?.response?.status;
       console.error("[/conversation] request failed:", status, e?.response?.data || e?.message);
