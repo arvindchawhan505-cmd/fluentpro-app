@@ -341,8 +341,8 @@ CHAT_JSON_INSTRUCTIONS = (
     "\"reply\": str (friendly, 2-3 lines max, easy beginner English, end with a follow-up question when natural), "
     "\"corrections\": [{\"original\": str, \"correction\": str, \"note\": str}] (ONE short correction only when the learner had a real grammar/word error; otherwise []), "
     "\"suggestion\": str (optional ONE simple 'better way to say it' rewrite — leave empty string if their sentence was already fine), "
-    "\"options\": [str] (EXACTLY these 4 topic buttons — [\"Daily conversation\", \"Job interview\", \"Travel English\", \"Free chat\"] — ONLY when the learner opens with a bare greeting / one word / under 5 words with no real topic (e.g. 'hi', 'hello', 'hey'). In that case set reply to exactly 'Hi! 👋 Let\\'s practice English together. What would you like to practice today?' and leave corrections/suggestion empty. For every other message leave options as [])"
-    "}. No markdown. Never assume the learner's goal — always let them choose the topic first."
+    "\"options\": [] (ALWAYS leave this empty array — you never emit topic chips; only the server does, once per session)"
+    "}. No markdown. Never assume the learner's goal — always engage with whatever topic they bring up. For greetings with extra content (e.g. 'hello good morning'), reply naturally and conversationally — DO NOT present a topic menu."
 )
 
 
@@ -356,18 +356,16 @@ def build_system_for_user(user: "User", scenario: str) -> str:
     return base + CHAT_JSON_INSTRUCTIONS
 
 
-GREETING_WORDS = {"hi", "hello", "hey", "hiya", "yo", "sup", "hola", "howdy"}
+GREETING_EXACT = {"", "hi", "hello"}
 
 
 def _is_short_greeting(text: str) -> bool:
-    """Rule 1: detect short greeting-only messages that should trigger the topic menu."""
-    t = (text or "").strip().lower().rstrip("!.?, ")
-    if not t:
-        return True
-    words = t.split()
-    if len(words) <= 2 and any(w.strip(".,!?") in GREETING_WORDS for w in words):
-        return True
-    return False
+    """Rule 1: only trigger the topic menu for EXACT bare greetings.
+    Any other message (e.g. 'hello good morning', 'hi how are you', 'I wake up...')
+    falls through to normal chat mode."""
+    t = (text or "").strip().lower().rstrip("!.?,: ")
+    # strip trailing punctuation and whitespace, then exact-match
+    return t in GREETING_EXACT
 
 
 @api_router.post("/conversation")
