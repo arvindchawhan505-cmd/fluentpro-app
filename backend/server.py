@@ -368,6 +368,9 @@ def _is_short_greeting(text: str) -> bool:
     return t in GREETING_EXACT
 
 
+FALLBACK_REPLY = "Sorry, something went wrong. Let's continue 😊"
+
+
 @api_router.post("/conversation")
 async def conversation(body: ConversationRequest, request: Request,
                        session_token: Optional[str] = Cookie(None),
@@ -432,8 +435,22 @@ async def conversation(body: ConversationRequest, request: Request,
     try:
         raw = await chat.send_message(UserMessage(text=prior + body.message))
     except Exception as e:
-        logger.exception("conversation error")
-        raise HTTPException(status_code=500, detail=f"LLM error: {e}")
+        # Never 500 on a user message — return a friendly fallback so the UI
+        # always has something to render. LLM calls are routed through Emergent's
+        # universal key; transient upstream hiccups shouldn't break the flow.
+        logger.exception("conversation LLM error: %s", e)
+        reply = FALLBACK_REPLY
+        now = datetime.now(timezone.utc).isoformat()
+        await db.conversations.insert_many([
+            {"user_id": user.user_id, "session_id": body.session_id,
+             "role": "user", "content": body.message, "created_at": now},
+            {"user_id": user.user_id, "session_id": body.session_id,
+             "role": "assistant", "content": reply, "corrections": [],
+             "suggestion": "", "options": [], "created_at": now},
+        ])
+        await update_streak_and_xp(user.user_id, 5)
+        await increment_challenge_metric(user.user_id, "conversation_messages", 1)
+        return {"reply": reply, "corrections": [], "suggestion": "", "options": []}
 
     # Parse structured JSON response (with graceful fallback to plain text)
     reply = raw
@@ -450,6 +467,10 @@ async def conversation(body: ConversationRequest, request: Request,
             options = [str(o).strip() for o in raw_options if str(o).strip()][:4]
     except Exception:
         pass
+
+    # Final safety net — never return an empty reply to the UI
+    if not reply or not str(reply).strip():
+        reply = FALLBACK_REPLY
 
     now = datetime.now(timezone.utc).isoformat()
     await db.conversations.insert_many([

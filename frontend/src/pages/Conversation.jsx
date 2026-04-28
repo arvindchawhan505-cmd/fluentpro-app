@@ -40,7 +40,7 @@ export default function Conversation() {
       const { data } = await api.post("/conversation", { session_id: sessionId, message: text, scenario });
       setMessages((m) => [...m, { role: "assistant", content: data.reply, corrections: data.corrections || [], suggestion: data.suggestion || "", options: data.options || [] }]);
     } catch (e) {
-      setMessages((m) => [...m, { role: "assistant", content: "⚠️ Sorry, I couldn't respond. Please try again." }]);
+      setMessages((m) => [...m, { role: "assistant", content: "Sorry, something went wrong. Let's continue 😊" }]);
     } finally {
       setLoading(false);
     }

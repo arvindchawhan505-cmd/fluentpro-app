@@ -93,7 +93,7 @@ export default function StartPractice() {
         setTimeout(() => setStep(2), 800);
       }
     } catch {
-      setChatReply("Nice to meet you! Let's keep going.");
+      setChatReply("Sorry, something went wrong. Let's continue 😊");
       setChatOptions([]);
       setTimeout(() => setStep(2), 800);
     } finally {
