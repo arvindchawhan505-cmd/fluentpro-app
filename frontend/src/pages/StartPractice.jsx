@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "@/lib/api";
@@ -6,7 +6,7 @@ import { celebrate } from "@/lib/celebrate";
 import { useAuth } from "@/context/AuthContext";
 import {
   ChatsCircle, BookBookmark, Notebook, ArrowRight, CheckCircle, PaperPlaneRight,
-  Sparkle, Lightning, Rocket,
+  Sparkle, Lightning, Rocket, Microphone, Stop,
 } from "@phosphor-icons/react";
 
 const TOTAL = 3;
@@ -33,6 +33,42 @@ export default function StartPractice() {
   const [grammarResult, setGrammarResult] = useState(null);
   const [grammarLoading, setGrammarLoading] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [voiceSupported, setVoiceSupported] = useState(false);
+  const recognitionRef = useRef(null);
+
+  useEffect(() => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    setVoiceSupported(!!SR);
+  }, []);
+
+  const startRecording = () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      alert("Voice input isn't supported in this browser. Try Chrome or Edge on desktop.");
+      return;
+    }
+    if (listening) {
+      try { recognitionRef.current?.stop(); } catch { /* noop */ }
+      return;
+    }
+    const recognition = new SR();
+    recognition.lang = "en-US";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.onstart = () => setListening(true);
+    recognition.onresult = (event) => {
+      const text = event.results?.[0]?.[0]?.transcript?.trim() || "";
+      if (text) {
+        setChatInput(text);
+        sendChat(text);
+      }
+    };
+    recognition.onerror = () => setListening(false);
+    recognition.onend = () => setListening(false);
+    recognitionRef.current = recognition;
+    recognition.start();
+  };
 
   const sendChat = async (textOverride) => {
     const text = (textOverride ?? chatInput).trim();
@@ -165,10 +201,25 @@ export default function StartPractice() {
                 data-testid="practice-chat-input"
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
-                placeholder="Hi Coach!"
+                placeholder={listening ? "Listening…" : "Hi Coach!"}
                 className="w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 font-medium text-slate-900 focus:border-indigo-400 focus:outline-none focus:ring-4 focus:ring-indigo-200"
                 autoFocus
               />
+              {voiceSupported && (
+                <button
+                  type="button"
+                  onClick={startRecording}
+                  data-testid="practice-chat-mic"
+                  aria-label={listening ? "Stop recording" : "Speak your message"}
+                  className={`relative rounded-xl border-b-4 px-5 py-3.5 font-bold text-white transition active:translate-y-1 active:border-b-0 ${
+                    listening
+                      ? "border-rose-700 bg-gradient-to-r from-rose-500 to-rose-600 animate-pulse"
+                      : "border-emerald-700 bg-gradient-to-r from-emerald-500 to-teal-500"
+                  }`}
+                >
+                  {listening ? <Stop weight="fill" size={18} /> : <Microphone weight="fill" size={18} />}
+                </button>
+              )}
               <button
                 type="submit"
                 data-testid="practice-chat-send"

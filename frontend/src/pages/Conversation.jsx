@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import { PaperPlaneRight, SpeakerHigh, ChatsCircle, Sparkle } from "@phosphor-icons/react";
+import { PaperPlaneRight, SpeakerHigh, ChatsCircle, Sparkle, Microphone, Stop } from "@phosphor-icons/react";
 
 const SCENARIOS = [
   { key: "general", label: "Free chat" },
@@ -13,12 +13,18 @@ const SCENARIOS = [
 export default function Conversation() {
   const [scenario, setScenario] = useState("general");
   const [sessionId] = useState(() => `sess_${Date.now()}`);
-  const [messages, setMessages] = useState([
-    { role: "assistant", content: "Hi! I'm Coach Ada. What would you like to talk about today?" },
-  ]);
+  const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [voiceSupported, setVoiceSupported] = useState(false);
+  const recognitionRef = useRef(null);
   const scrollRef = useRef(null);
+
+  useEffect(() => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    setVoiceSupported(!!SR);
+  }, []);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -47,6 +53,37 @@ export default function Conversation() {
       const audio = new Audio(url);
       audio.play();
     } catch { /* noop */ }
+  };
+
+  const startRecording = () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      alert("Voice input isn't supported in this browser. Try Chrome or Edge on desktop.");
+      return;
+    }
+    if (listening) {
+      try { recognitionRef.current?.stop(); } catch { /* noop */ }
+      return;
+    }
+    const recognition = new SR();
+    recognition.lang = "en-US";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => setListening(true);
+    recognition.onresult = (event) => {
+      const text = event.results?.[0]?.[0]?.transcript?.trim() || "";
+      if (text) {
+        setInput(text);
+        // Auto-send the recognized phrase
+        send(text);
+      }
+    };
+    recognition.onerror = () => setListening(false);
+    recognition.onend = () => setListening(false);
+
+    recognitionRef.current = recognition;
+    recognition.start();
   };
 
   return (
@@ -84,6 +121,16 @@ export default function Conversation() {
         data-testid="conversation-messages"
       >
         <div className="space-y-3">
+          {messages.length === 0 && !loading && (
+            <div className="flex h-full min-h-[40vh] flex-col items-center justify-center text-center" data-testid="conversation-empty-state">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-violet-500 text-white shadow-md">
+                <ChatsCircle weight="duotone" size={28} />
+              </div>
+              <p className="mt-4 max-w-xs font-medium text-slate-500">
+                Say "hi" to start — or tap the mic to speak.
+              </p>
+            </div>
+          )}
           {messages.map((m, i) => (
             <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
               <div className={`flex max-w-[88%] flex-col gap-2 ${m.role === "user" ? "items-end" : "items-start"}`}>
@@ -170,9 +217,25 @@ export default function Conversation() {
           data-testid="conversation-input"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Type your message…"
+          placeholder={listening ? "Listening…" : "Type your message…"}
           className="w-full rounded-xl border-2 border-slate-200 bg-white p-4 font-medium text-slate-900 transition focus:border-indigo-400 focus:outline-none focus:ring-4 focus:ring-indigo-200"
         />
+        {voiceSupported && (
+          <button
+            type="button"
+            onClick={startRecording}
+            data-testid="conversation-mic-button"
+            aria-label={listening ? "Stop recording" : "Start voice input"}
+            title={listening ? "Stop recording" : "Speak your message"}
+            className={`relative rounded-xl border-b-4 px-5 py-4 font-bold text-white transition active:translate-y-1 active:border-b-0 ${
+              listening
+                ? "border-rose-700 bg-gradient-to-r from-rose-500 to-rose-600 animate-pulse"
+                : "border-emerald-700 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600"
+            }`}
+          >
+            {listening ? <Stop weight="fill" size={20} /> : <Microphone weight="fill" size={20} />}
+          </button>
+        )}
         <button
           type="submit"
           data-testid="conversation-send-button"
