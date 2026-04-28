@@ -92,7 +92,16 @@ export default function StartPractice() {
       if (opts.length === 0 && nextTurnCount >= 2) {
         setTimeout(() => setStep(2), 800);
       }
-    } catch {
+    } catch (e) {
+      console.error("[/conversation] StartPractice request failed:", e?.response?.status, e?.response?.data || e?.message);
+      if (e?.response?.status === 402) {
+        // Premium gate — stay on step so user can see the upgrade modal, but
+        // still allow them to progress the onboarding.
+        setChatReply("Let's keep going 😊");
+        setChatOptions([]);
+        setTimeout(() => setStep(2), 1200);
+        return;
+      }
       setChatReply("Sorry, something went wrong. Let's continue 😊");
       setChatOptions([]);
       setTimeout(() => setStep(2), 800);

@@ -380,6 +380,14 @@ async def conversation(body: ConversationRequest, request: Request,
                        session_token: Optional[str] = Cookie(None),
                        authorization: Optional[str] = Header(None)):
     user = await get_current_user(request, session_token, authorization)
+
+    # ---- Task 1: log the full request body ----
+    logger.info(
+        "[/conversation] user=%s session=%s scenario=%s msg_len=%d msg=%r",
+        user.user_id, body.session_id, body.scenario or "general",
+        len(body.message or ""), body.message,
+    )
+
     await check_and_increment_usage(user.user_id, "conversation", is_user_premium(user))
     scenario = body.scenario or "general"
 
@@ -438,11 +446,18 @@ async def conversation(body: ConversationRequest, request: Request,
 
     try:
         raw = await chat.send_message(UserMessage(text=prior + body.message))
+        logger.info(
+            "[/conversation] LLM raw response (user=%s len=%d): %r",
+            user.user_id, len(str(raw or "")), (str(raw or "")[:500]),
+        )
     except Exception as e:
         # Never 500 on a user message — return a friendly fallback so the UI
-        # always has something to render. LLM calls are routed through Emergent's
+        # always has something to render. LLM calls go through the Emergent
         # universal key; transient upstream hiccups shouldn't break the flow.
-        logger.exception("conversation LLM error: %s", e)
+        logger.error(
+            "[/conversation] Emergent LLM call failed user=%s session=%s err=%r",
+            user.user_id, body.session_id, e, exc_info=True,
+        )
         reply = FALLBACK_REPLY
         now = datetime.now(timezone.utc).isoformat()
         await db.conversations.insert_many([
@@ -457,23 +472,29 @@ async def conversation(body: ConversationRequest, request: Request,
         return {"reply": reply, "corrections": [], "suggestion": "", "options": []}
 
     # Parse structured JSON response (with graceful fallback to plain text)
-    reply = raw
+    reply = str(raw or "").strip()
     corrections = []
     suggestion = ""
     options = []
     try:
         data = _parse_json(raw)
-        reply = data.get("reply") or raw
-        corrections = data.get("corrections") or []
-        suggestion = data.get("suggestion") or ""
+        reply = (data.get("reply") or "").strip() or reply
+        raw_corrections = data.get("corrections") or []
+        if isinstance(raw_corrections, list):
+            corrections = raw_corrections
+        suggestion = str(data.get("suggestion") or "").strip()
         raw_options = data.get("options") or []
         if isinstance(raw_options, list):
             options = [str(o).strip() for o in raw_options if str(o).strip()][:4]
-    except Exception:
-        pass
+    except Exception as parse_err:
+        logger.warning(
+            "[/conversation] JSON parse failed user=%s — falling back to raw text. err=%s raw=%r",
+            user.user_id, parse_err, (str(raw or "")[:200]),
+        )
 
     # Final safety net — never return an empty reply to the UI
-    if not reply or not str(reply).strip():
+    if not reply or not reply.strip():
+        logger.warning("[/conversation] empty reply — returning fallback user=%s", user.user_id)
         reply = FALLBACK_REPLY
 
     now = datetime.now(timezone.utc).isoformat()
@@ -486,7 +507,12 @@ async def conversation(body: ConversationRequest, request: Request,
     ])
     await update_streak_and_xp(user.user_id, 5)
     await increment_challenge_metric(user.user_id, "conversation_messages", 1)
-    return {"reply": reply, "corrections": corrections, "suggestion": suggestion, "options": options}
+    resp_payload = {"reply": reply, "corrections": corrections, "suggestion": suggestion, "options": options}
+    logger.info(
+        "[/conversation] returning user=%s reply_len=%d options=%d corrections=%d",
+        user.user_id, len(reply), len(options), len(corrections),
+    )
+    return resp_payload
 
 
 @api_router.get("/conversation/history/{session_id}")

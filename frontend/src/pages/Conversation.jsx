@@ -40,6 +40,10 @@ export default function Conversation() {
       const { data } = await api.post("/conversation", { session_id: sessionId, message: text, scenario });
       setMessages((m) => [...m, { role: "assistant", content: data.reply, corrections: data.corrections || [], suggestion: data.suggestion || "", options: data.options || [] }]);
     } catch (e) {
+      console.error("[/conversation] request failed:", e?.response?.status, e?.response?.data || e?.message);
+      // 402 = free-tier limit / premium-required — the axios interceptor already
+      // fires the premium-required event; don't also push a confusing fallback.
+      if (e?.response?.status === 402) return;
       setMessages((m) => [...m, { role: "assistant", content: "Sorry, something went wrong. Let's continue 😊" }]);
     } finally {
       setLoading(false);
