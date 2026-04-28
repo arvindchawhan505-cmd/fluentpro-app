@@ -1,0 +1,46 @@
+{
+  "summary": "Iteration 9 — full backend+frontend validation of Option D (Retention Pack + Performance Pack + Polish Pack). Backend: 24/24 pytest tests PASSED in new /app/backend/tests/test_retention.py (~7s) against REACT_APP_BACKEND_URL. Covered: (a) 3 MongoDB indexes — conversations compound (user_id,session_id,created_at) and unique compound on streak_saves.(user_id,date) + streak_milestones.(user_id,days), (b) /api/streak/saver eligibility matrix (streak>=2 + tasks_done==0 + not claimed → eligible=true; streak=1 → false; after grammar activity bumps daily-path task → false; after POST claim → claimed_today=true/eligible=false), (c) /api/streak/saver/claim insert + idempotency, (d) /api/streak/milestone pending/next logic (streak=2 pending=null next.days=3; streak=7 unclaimed pending.days=7; claimed day3 + streak 7 → skips to pending=7), (e) /api/streak/milestone/claim XP award + badge write + idempotency + 400 on unreached + 400 on unknown + all 6 tiers (3→25, 7→75, 14→150, 30→300, 60→600, 100→1000) awarded correctly, (f) regression on /auth/me /progress /lessons /checkin/today /challenge/today /onboarding/quest /referral/me /daily-path + /manifest.json shape. When run in isolation with a fresh state reset, test_retention.py + test_daily_path_and_onboarding.py together = 43/43 pass. Running the *entire* suite back-to-back shows 4 pre-existing iter8 failures in test_daily_path_and_onboarding.py because test_goal_onboarding.py resets user1.goal to null — this is pre-existing cross-test coupling, NOT a regression from iter9. Frontend: Playwright smoke on /dashboard /conversation /grammar /lessons with session_token cookie — dashboard renders without white screen (daily-path-card visible, 0 pageerrors), StreakSaverBanner correctly hidden when not 9pm local (component mounts without error), StreakMilestoneModal correctly hidden at streak=2 (pending=null), and when streak artificially set to 7 the modal appears with testid='streak-milestone-modal' showing 'One-week streak' + '+75 XP · weekwarrior badge' + claim button. Lazy-loaded routes (/conversation /grammar /lessons) all hydrate real content after PageSkeleton. /manifest.json serves correct FluentPro metadata (theme_color #6366F1, standalone, 192/512/maskable icons, 2 shortcuts /dashboard+/conversation). Index.html links /manifest.json + apple-mobile-web-app meta tags.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/streak/saver", "issue": "Reward_xp reported (5) is informational only — it's NOT awarded anywhere. The claim endpoint writes a streak_saves doc but doesn't call update_streak_and_xp, so reward_xp=5 in the response is misleading vs milestones which do award. Either award it on first claim or drop the field (frontend banner currently shows '+5 XP' prompt which won't materialize)."},
+      {"endpoint": "POST /api/streak/saver/claim", "issue": "No server-side gate verifying the user is actually eligible (streak>=2, tasks_done=0, not-9pm-optional). A client could POST this at any time and the row is inserted. Low risk since it's analytics-only, but inconsistent with milestone/claim's 400 on unreached."},
+      {"endpoint": "GET /api/streak/milestone", "issue": "'pending' is the HIGHEST unclaimed reached tier, not the lowest. If a user goes from streak=2 → streak=30 without claiming (edge case), they'd see the 30-day modal first and skip 3/7/14 celebrations forever (those tiers become un-celebratable since next load sees 30 claimed + 3/7/14 still unclaimed but pending loop picks highest). Consider picking LOWEST unclaimed reached, or awarding/marking all lower tiers when user claims a higher one."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/dashboard w/ StreakMilestoneModal", "issues": ["Modal overlays the DailyPathCard + onboarding quest fully — acceptable UX for a once-per-tier celebration, but note that the existing UpgradeNudgeModal ALSO auto-opens on dashboard (iter8 flag). When both fire on the same load, z-order / sequencing isn't specified. Consider ensuring milestone modal wins and upgrade-nudge is deferred by one session after a milestone claim."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_retention.py",
+    "/app/test_reports/pytest/pytest_iter9_retention.xml",
+    "/app/test_reports/pytest/pytest_iter9_full.xml"
+  ],
+  "action_items": [
+    "Optional: have POST /api/streak/saver/claim also call update_streak_and_xp(+5) OR remove the reward_xp field from the GET response so the banner doesn't promise XP that isn't delivered.",
+    "Optional: change /api/streak/milestone 'pending' to pick the LOWEST unclaimed reached tier (or fan-out claim to mark all lower tiers) so users don't lose celebrations when streak jumps past multiple tiers.",
+    "Optional hardening: POST /api/streak/saver/claim could 400 when eligibility is false, matching milestone/claim's strictness.",
+    "Independent of iter9, the iter8 test file test_daily_path_and_onboarding.py fails 4 tests when test_goal_onboarding.py runs before it (goal reset to null). Either make iter8 tests reset goal in their fixture or gate the cross-test order."
+  ],
+  "critical_code_review_comments": [
+    "server.py is now at 1705 lines — router split is overdue (auth, profile, lessons, billing, checkin, challenge, onboarding, daily-path, retention, referral). Iter9 added ~110 more lines.",
+    "STREAK_MILESTONES constant has reward_xp and badge bundled — could extract to a tiers.py module that both milestone endpoints import, alongside any future 'leagues' feature.",
+    "Both /streak/saver/claim and /streak/milestone/claim swallow exceptions from insert_one silently on duplicate key — while the unique compound indexes guarantee idempotency, wrapping in try/except DuplicateKeyError with explicit already_claimed=True return would be clearer than relying on the prior find_one short-circuit (which has a TOCTOU window just like referral/apply).",
+    "StreakMilestoneModal calls /api/streak/milestone on every app-load mount. Consider caching (React Query) or adding a client-side 'dismissed-today' flag so a user who refreshes 20 times doesn't hit the endpoint 20 times.",
+    "PageSkeleton is a single pulsing placeholder — works but every lazy route shows the SAME generic skeleton. For UX polish, page-shaped skeletons (lesson-list skeleton vs chat skeleton) would feel snappier."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_retention.py"
+  ],
+  "success_rate": {"backend": "100% (24/24 new retention tests; 43/43 when combined with iter8 tests from a clean state)", "frontend": "100% (all critical spec-required selectors present; milestone modal verified on positive path; 0 pageerrors)"},
+  "test_credentials": "Bearer test_session_english_coach_v1 (user_id=test-user-english-coach). After iter9 reset: goal=job_interview, streak=2, has_completed_day1=true, xp=10222 (grew during milestone rewards test). streak_saves/streak_milestones/daily_paths/usage_logs for this user all cleared.",
+  "seed_data_creation": "Created /app/backend/tests/test_retention.py with autouse fixture that resets streak=2, has_completed_day1=true, clears today's daily_path/usage_logs/streak_saves/streak_milestones per-test. Individual tests artificially set streak=7/14/30/60/100 via pymongo for milestone claim verification, then cleaned up.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "9 test files now in /app/backend/tests/: added test_retention.py (iter9). Run all: `pytest /app/backend/tests/ -v --junitxml=/app/test_reports/pytest/pytest_results.xml`. IMPORTANT: test_goal_onboarding.py is known to reset test-user-english-coach.goal=null which breaks the subsequent test_daily_path_and_onboarding.py suite — run `mongosh --quiet --eval 'db=db.getSiblingDB(\"test_database\"); db.users.updateOne({user_id:\"test-user-english-coach\"},{\\$set:{goal:\"job_interview\",streak:2,has_completed_day1:true}}); db.daily_paths.deleteMany({}); db.usage_logs.deleteMany({}); db.streak_saves.deleteMany({}); db.streak_milestones.deleteMany({});'` before the full suite, or run test_retention.py standalone. For frontend auth: set session_token cookie with domain=vocab-builder-263.preview.emergentagent.com, sameSite=None, secure=True. Milestone modal positive-path requires artificially setting user.streak>=3 in mongo and clearing db.streak_milestones before navigation; at streak=2 (default) the modal correctly does not render. StreakSaverBanner has a client-side 9pm-local gate so it typically won't appear in CI — test via component mount (0 pageerrors) rather than visible DOM.",
+  "rca of the issue": "No blocking bugs. All 3 new MongoDB indexes verified via index_information(). All 6 milestone tiers award the spec'd XP. Saver + milestone idempotency verified. Lazy-loaded routes all hydrate. Manifest served correctly. Only latent design issues listed above (reward_xp=5 on saver is cosmetic since claim doesn't award; milestone pending=highest-not-lowest may skip celebrations on big streak jumps). Iter8 test failures in full-suite run are pre-existing cross-test state coupling, not caused by iter9."
+}

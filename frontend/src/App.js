@@ -1,4 +1,4 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import "@/App.css";
 import { BrowserRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
@@ -10,18 +10,28 @@ import GoalOnboardingModal from "@/components/GoalOnboardingModal";
 import StreakProtectorBanner from "@/components/StreakProtectorBanner";
 import UpgradeNudgeModal from "@/components/UpgradeNudgeModal";
 import PracticeNextStep from "@/components/PracticeNextStep";
+import StreakSaverBanner from "@/components/StreakSaverBanner";
+import StreakMilestoneModal from "@/components/StreakMilestoneModal";
+import ErrorBoundary from "@/components/ErrorBoundary";
+import PageSkeleton from "@/components/PageSkeleton";
 import Landing from "@/pages/Landing";
 import Dashboard from "@/pages/Dashboard";
-import Conversation from "@/pages/Conversation";
-import Grammar from "@/pages/Grammar";
-import Vocabulary from "@/pages/Vocabulary";
-import Pronunciation from "@/pages/Pronunciation";
-import Writing from "@/pages/Writing";
-import Lessons from "@/pages/Lessons";
-import LessonDetail from "@/pages/LessonDetail";
-import Profile from "@/pages/Profile";
-import Premium from "@/pages/Premium";
-import StartPractice from "@/pages/StartPractice";
+
+// Code-split the heavier feature pages — they're not needed for first paint.
+const Conversation = lazy(() => import("@/pages/Conversation"));
+const Grammar = lazy(() => import("@/pages/Grammar"));
+const Vocabulary = lazy(() => import("@/pages/Vocabulary"));
+const Pronunciation = lazy(() => import("@/pages/Pronunciation"));
+const Writing = lazy(() => import("@/pages/Writing"));
+const Lessons = lazy(() => import("@/pages/Lessons"));
+const LessonDetail = lazy(() => import("@/pages/LessonDetail"));
+const Profile = lazy(() => import("@/pages/Profile"));
+const Premium = lazy(() => import("@/pages/Premium"));
+const StartPractice = lazy(() => import("@/pages/StartPractice"));
+
+function Lazy({ children }) {
+  return <Suspense fallback={<PageSkeleton />}>{children}</Suspense>;
+}
 
 function Protected({ children }) {
   return (
@@ -32,50 +42,43 @@ function Protected({ children }) {
       <StreakProtectorBanner />
       <UpgradeNudgeModal />
       <PracticeNextStep />
+      <StreakSaverBanner />
+      <StreakMilestoneModal />
     </ProtectedRoute>
   );
 }
 
 function PremiumGate({ children }) {
-  // Premium upsell is hidden until the user finishes Day-1 onboarding.
   const { user, loading } = useAuth();
   if (loading) return null;
-  if (user && !user.has_completed_day1) {
-    return <Navigate to="/start-practice" replace />;
-  }
+  if (user && !user.has_completed_day1) return <Navigate to="/start-practice" replace />;
   return children;
 }
 
 function NewUserGate({ children }) {
-  // Any feature route is hidden for new users — they are funnelled to /start-practice.
   const { user, loading } = useAuth();
   if (loading) return null;
-  if (user && !user.has_completed_day1) {
-    return <Navigate to="/start-practice" replace />;
-  }
+  if (user && !user.has_completed_day1) return <Navigate to="/start-practice" replace />;
   return children;
 }
 
 function AppRouter() {
   const location = useLocation();
-  // Synchronous check for OAuth callback to avoid race conditions
-  if (location.hash?.includes("session_id=")) {
-    return <AuthCallback />;
-  }
+  if (location.hash?.includes("session_id=")) return <AuthCallback />;
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
-      <Route path="/lessons" element={<Protected><NewUserGate><Lessons /></NewUserGate></Protected>} />
-      <Route path="/lessons/:id" element={<Protected><NewUserGate><LessonDetail /></NewUserGate></Protected>} />
-      <Route path="/conversation" element={<Protected><NewUserGate><Conversation /></NewUserGate></Protected>} />
-      <Route path="/grammar" element={<Protected><NewUserGate><Grammar /></NewUserGate></Protected>} />
-      <Route path="/vocabulary" element={<Protected><NewUserGate><Vocabulary /></NewUserGate></Protected>} />
-      <Route path="/pronunciation" element={<Protected><NewUserGate><Pronunciation /></NewUserGate></Protected>} />
-      <Route path="/writing" element={<Protected><NewUserGate><Writing /></NewUserGate></Protected>} />
-      <Route path="/profile" element={<Protected><Profile /></Protected>} />
-      <Route path="/premium" element={<Protected><PremiumGate><Premium /></PremiumGate></Protected>} />
-      <Route path="/start-practice" element={<ProtectedRoute><StartPractice /></ProtectedRoute>} />
+      <Route path="/lessons" element={<Protected><NewUserGate><Lazy><Lessons /></Lazy></NewUserGate></Protected>} />
+      <Route path="/lessons/:id" element={<Protected><NewUserGate><Lazy><LessonDetail /></Lazy></NewUserGate></Protected>} />
+      <Route path="/conversation" element={<Protected><NewUserGate><Lazy><Conversation /></Lazy></NewUserGate></Protected>} />
+      <Route path="/grammar" element={<Protected><NewUserGate><Lazy><Grammar /></Lazy></NewUserGate></Protected>} />
+      <Route path="/vocabulary" element={<Protected><NewUserGate><Lazy><Vocabulary /></Lazy></NewUserGate></Protected>} />
+      <Route path="/pronunciation" element={<Protected><NewUserGate><Lazy><Pronunciation /></Lazy></NewUserGate></Protected>} />
+      <Route path="/writing" element={<Protected><NewUserGate><Lazy><Writing /></Lazy></NewUserGate></Protected>} />
+      <Route path="/profile" element={<Protected><Lazy><Profile /></Lazy></Protected>} />
+      <Route path="/premium" element={<Protected><PremiumGate><Lazy><Premium /></Lazy></PremiumGate></Protected>} />
+      <Route path="/start-practice" element={<ProtectedRoute><Lazy><StartPractice /></Lazy></ProtectedRoute>} />
     </Routes>
   );
 }
@@ -83,11 +86,13 @@ function AppRouter() {
 export default function App() {
   return (
     <div className="App">
-      <BrowserRouter>
-        <AuthProvider>
-          <AppRouter />
-        </AuthProvider>
-      </BrowserRouter>
+      <ErrorBoundary>
+        <BrowserRouter>
+          <AuthProvider>
+            <AppRouter />
+          </AuthProvider>
+        </BrowserRouter>
+      </ErrorBoundary>
     </div>
   );
 }

@@ -1401,6 +1401,114 @@ async def daily_path_claim(request: Request,
     return {"already_claimed": False, "xp_awarded": DAILY_PATH_REWARD_XP}
 
 
+# ---------- Streak Saver (rescue nudge + 1-tap mini task) ----------
+SAVER_HOUR_IST_OFFSET = 21  # server may be UTC; client also enforces 9pm local
+
+
+@api_router.get("/streak/saver")
+async def streak_saver_state(request: Request,
+                             session_token: Optional[str] = Cookie(None),
+                             authorization: Optional[str] = Header(None)):
+    """Returns whether the Smart Streak Saver nudge should surface right now.
+    Eligibility: streak >= 2, today's daily path has 0/3 tasks done, AND the user
+    hasn't already claimed it today. The frontend additionally gates on local
+    hour >= 21 and dismissal state."""
+    user = await get_current_user(request, session_token, authorization)
+    today = date.today().isoformat()
+    dp = await _daily_path_state(user.user_id, user.goal)
+    saver_doc = await db.streak_saves.find_one(
+        {"user_id": user.user_id, "date": today}, {"_id": 0}
+    )
+    eligible = (user.streak or 0) >= 2 and dp["tasks_done"] == 0 and not (saver_doc and saver_doc.get("claimed"))
+    return {
+        "eligible": eligible,
+        "streak": user.streak or 0,
+        "claimed_today": bool(saver_doc and saver_doc.get("claimed")),
+        "reward_xp": 5,
+        "prompt": "Quick 1-minute rescue: chat or grammar check to save today's streak.",
+    }
+
+
+@api_router.post("/streak/saver/claim")
+async def streak_saver_claim(request: Request,
+                             session_token: Optional[str] = Cookie(None),
+                             authorization: Optional[str] = Header(None)):
+    """Records that the user used the saver nudge today (analytics + idempotency).
+    The actual streak extension comes from them completing a real activity —
+    this endpoint just marks the nudge as acted upon so we don't re-show it."""
+    user = await get_current_user(request, session_token, authorization)
+    today = date.today().isoformat()
+    existing = await db.streak_saves.find_one({"user_id": user.user_id, "date": today})
+    if existing:
+        return {"already_claimed": True}
+    await db.streak_saves.insert_one({
+        "user_id": user.user_id,
+        "date": today,
+        "claimed": True,
+        "claimed_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return {"already_claimed": False}
+
+
+# ---------- Streak Milestones (day 3/7/14/30/60/100 celebrations) ----------
+STREAK_MILESTONES = [
+    {"days": 3, "label": "3-day streak", "emoji": "🌱", "badge": "sprout", "reward_xp": 25},
+    {"days": 7, "label": "One-week streak", "emoji": "🔥", "badge": "weekwarrior", "reward_xp": 75},
+    {"days": 14, "label": "Two-week streak", "emoji": "💪", "badge": "fortnight", "reward_xp": 150},
+    {"days": 30, "label": "One-month streak", "emoji": "🏆", "badge": "monthmaster", "reward_xp": 300},
+    {"days": 60, "label": "Two-month streak", "emoji": "💎", "badge": "diamond", "reward_xp": 600},
+    {"days": 100, "label": "100-day streak", "emoji": "👑", "badge": "centurion", "reward_xp": 1000},
+]
+
+
+@api_router.get("/streak/milestone")
+async def streak_milestone(request: Request,
+                           session_token: Optional[str] = Cookie(None),
+                           authorization: Optional[str] = Header(None)):
+    """Returns the currently-celebratable milestone (if any). A milestone fires
+    exactly once — when the user's streak first hits that threshold. Frontend
+    calls this on app load and shows the celebration modal."""
+    user = await get_current_user(request, session_token, authorization)
+    streak = user.streak or 0
+    claimed = await db.streak_milestones.find({"user_id": user.user_id}, {"_id": 0, "days": 1}).to_list(100)
+    claimed_days = {int(c.get("days") or 0) for c in claimed}
+    # Highest unclaimed milestone the user has already reached
+    pending = None
+    for m in STREAK_MILESTONES:
+        if streak >= m["days"] and m["days"] not in claimed_days:
+            pending = m
+    return {
+        "streak": streak,
+        "pending": pending,
+        "next": next((m for m in STREAK_MILESTONES if m["days"] > streak), None),
+    }
+
+
+@api_router.post("/streak/milestone/claim")
+async def streak_milestone_claim(body: dict, request: Request,
+                                 session_token: Optional[str] = Cookie(None),
+                                 authorization: Optional[str] = Header(None)):
+    """Claims the XP + badge for a specific milestone. Idempotent per (user, days)."""
+    user = await get_current_user(request, session_token, authorization)
+    days = int(body.get("days") or 0)
+    milestone = next((m for m in STREAK_MILESTONES if m["days"] == days), None)
+    if not milestone:
+        raise HTTPException(status_code=400, detail="Unknown milestone")
+    if (user.streak or 0) < milestone["days"]:
+        raise HTTPException(status_code=400, detail="Milestone not yet reached")
+    existing = await db.streak_milestones.find_one({"user_id": user.user_id, "days": days})
+    if existing:
+        return {"already_claimed": True, "xp_awarded": 0}
+    await db.streak_milestones.insert_one({
+        "user_id": user.user_id,
+        "days": days,
+        "badge": milestone["badge"],
+        "claimed_at": datetime.now(timezone.utc).isoformat(),
+    })
+    await update_streak_and_xp(user.user_id, milestone["reward_xp"])
+    return {"already_claimed": False, "xp_awarded": milestone["reward_xp"], "badge": milestone["badge"]}
+
+
 # ---------- Referral system ----------
 REFERRER_REWARD = 100  # XP for referrer when invitee redeems
 INVITEE_REWARD = 50    # XP bonus for invitee on signup with code
@@ -1570,6 +1678,12 @@ async def ensure_indexes():
         await db.user_sessions.create_index("session_token", unique=True)
         await db.users.create_index("referral_code", sparse=True)
         await db.daily_paths.create_index([("user_id", 1), ("date", 1)], unique=True)
+        await db.streak_saves.create_index([("user_id", 1), ("date", 1)], unique=True)
+        await db.streak_milestones.create_index([("user_id", 1), ("days", 1)], unique=True)
+        # Perf: conversation history queries sort by (user_id, session_id, created_at)
+        await db.conversations.create_index([
+            ("user_id", 1), ("session_id", 1), ("created_at", 1),
+        ])
         # Lazy backfill (bounded): ensure existing users have referral_code stored.
         # Capped per startup to avoid long boot on huge installs; remaining users
         # get their code on next startup or whenever they hit /referral/me (which

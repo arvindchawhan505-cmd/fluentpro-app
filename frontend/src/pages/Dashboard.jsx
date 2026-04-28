@@ -28,14 +28,18 @@ export default function Dashboard() {
   const [progress, setProgress] = useState(null);
   const [lessons, setLessons] = useState([]);
   const [shareOpen, setShareOpen] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const isNewUser = user && !user.has_completed_day1;
 
   useEffect(() => {
-    if (isNewUser) return;
+    if (isNewUser) { setLoaded(true); return; }
     (async () => {
-      const [p, l] = await Promise.all([api.get("/progress"), api.get("/lessons")]);
-      setProgress(p.data);
-      setLessons(l.data.lessons);
+      try {
+        const [p, l] = await Promise.all([api.get("/progress"), api.get("/lessons")]);
+        setProgress(p.data);
+        setLessons(l.data.lessons);
+      } catch { /* tolerate — show what we have */ }
+      setLoaded(true);
     })();
   }, [isNewUser]);
 
@@ -94,6 +98,27 @@ export default function Dashboard() {
   }
 
   const nextLesson = lessons.find((l) => !l.completed && !l.locked) || lessons.find((l) => !l.completed);
+
+  if (!loaded) {
+    return (
+      <div className="space-y-6 pb-24 md:pb-8" data-testid="dashboard-skeleton">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
+          <div className="md:col-span-8 h-48 animate-pulse rounded-3xl border-2 border-slate-100 bg-slate-50" />
+          <div className="md:col-span-4 grid grid-cols-3 gap-3 md:grid-cols-1">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="h-14 animate-pulse rounded-2xl border-2 border-slate-100 bg-slate-50" style={{ animationDelay: `${i * 80}ms` }} />
+            ))}
+          </div>
+        </div>
+        <div className="h-40 animate-pulse rounded-3xl border-2 border-slate-100 bg-slate-50" />
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="h-28 animate-pulse rounded-3xl border-2 border-slate-100 bg-slate-50" style={{ animationDelay: `${i * 60}ms` }} />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 pb-24 md:pb-8" data-testid="dashboard-page">
