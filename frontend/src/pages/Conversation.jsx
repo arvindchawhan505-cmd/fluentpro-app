@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
-import { PaperPlaneRight, SpeakerHigh, ChatsCircle, Sparkle, Microphone, Stop } from "@phosphor-icons/react";
+import { PaperPlaneRight, SpeakerHigh, ChatsCircle, Microphone, Stop, Fire, Rocket } from "@phosphor-icons/react";
+import CorrectionCard from "@/components/CorrectionCard";
 
 const SCENARIOS = [
   { key: "general", label: "Free chat" },
@@ -39,12 +40,16 @@ export default function Conversation() {
     setLoading(true);
     try {
       const { data } = await api.post("/conversation", { session_id: sessionId, message: text, scenario });
-      setMessages((m) => [...m, { role: "assistant", content: data.reply, corrections: data.corrections || [], suggestion: data.suggestion || "", options: data.options || [] }]);
+      setMessages((m) => [...m, {
+        role: "assistant",
+        content: data.reply,
+        correction: data.correction || null,
+        options: data.options || [],
+        encouragement: data.encouragement || "",
+      }]);
     } catch (e) {
       const status = e?.response?.status;
       console.error("[/conversation] request failed:", status, e?.response?.data || e?.message);
-      // Distinct handling for 402 free-tier limit — show a friendly limit
-      // message in the chat. The axios interceptor also fires the upgrade modal.
       if (status === 402) {
         setMessages((m) => [...m, {
           role: "assistant",
@@ -178,29 +183,17 @@ export default function Conversation() {
                   )}
                 </div>
 
-                {m.role === "assistant" && m.corrections?.length > 0 && (
-                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-2.5 text-sm" data-testid={`corrections-${i}`}>
-                    <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-amber-700">Quick fix</div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {m.corrections.map((c, ci) => (
-                        <span key={ci} className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-1 text-xs font-bold shadow-sm">
-                          <span className="text-rose-600 line-through">{c.original}</span>
-                          <span className="text-slate-400">→</span>
-                          <span className="text-emerald-700">{c.correction}</span>
-                        </span>
-                      ))}
-                    </div>
-                    {m.corrections[0]?.note && <div className="mt-2 text-xs font-medium text-amber-800">{m.corrections[0].note}</div>}
-                  </div>
+                {m.role === "assistant" && m.correction && (
+                  <CorrectionCard correction={m.correction} testId={`correction-${i}`} />
                 )}
 
-                {m.role === "assistant" && m.suggestion && (
-                  <div className="inline-flex items-start gap-2 rounded-2xl border border-indigo-200 bg-indigo-50 p-2.5 text-sm" data-testid={`suggestion-${i}`}>
-                    <Sparkle weight="fill" size={14} className="mt-0.5 shrink-0 text-indigo-500" />
-                    <div>
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-700">Better way to say it</div>
-                      <div className="mt-0.5 font-medium text-indigo-900">{m.suggestion}</div>
-                    </div>
+                {m.role === "assistant" && m.encouragement && (
+                  <div
+                    data-testid={`encouragement-${i}`}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-extrabold text-emerald-700"
+                  >
+                    {m.encouragement.includes("🚀") ? <Rocket weight="fill" size={12} /> : <Fire weight="fill" size={12} />}
+                    {m.encouragement}
                   </div>
                 )}
 

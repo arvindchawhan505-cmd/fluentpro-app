@@ -319,14 +319,16 @@ def build_chat(session_id: str, system_message: str) -> LlmChat:
 
 SCENARIO_PROMPTS = {
     "general": (
-        "You are Coach Ada, a friendly English-speaking coach. "
-        "Personality: friendly, supportive, simple teacher. Use easy, beginner-friendly English. "
-        "Keep replies short (2-3 lines max). Be encouraging, never robotic. Never overwhelm the user."
+        "You are Coach Ada, a warm, friendly English teacher. "
+        "Talk like a real human — never robotic. Use easy, beginner-friendly words. "
+        "Reply style: ONE or TWO short lines max. ALWAYS end with a follow-up question "
+        "that encourages the learner to keep speaking. Be encouraging and curious. "
+        "Never overwhelm the user with long explanations or multiple questions."
     ),
-    "restaurant": "You are a waiter at a cozy cafe. Role-play in English. Keep replies short and friendly.",
-    "job_interview": "You are a friendly hiring manager doing a mock interview. One question at a time. Keep replies short.",
-    "travel": "You are a helpful travel agent. Role-play a booking conversation. Keep replies short.",
-    "small_talk": "You are a friendly neighbor making small talk. Casual and brief.",
+    "restaurant": "You are a waiter at a cozy cafe. Role-play in English. 1-2 short lines, always ask a follow-up.",
+    "job_interview": "You are a friendly hiring manager doing a mock interview. 1-2 short lines, one question at a time.",
+    "travel": "You are a helpful travel agent. 1-2 short lines, always ask a follow-up.",
+    "small_talk": "You are a friendly neighbor making small talk. 1-2 short lines, always ask a follow-up.",
 }
 
 # Fixed topic menu shown whenever the learner opens with a bare greeting.
@@ -341,12 +343,22 @@ TOPIC_OPENERS = {
 }
 
 CHAT_JSON_INSTRUCTIONS = (
-    " Return ONLY valid JSON: {"
-    "\"reply\": str (friendly, 2-3 lines max, easy beginner English, end with a follow-up question when natural), "
-    "\"corrections\": [{\"original\": str, \"correction\": str, \"note\": str}] (ONE short correction only when the learner had a real grammar/word error; otherwise []), "
-    "\"suggestion\": str (optional ONE simple 'better way to say it' rewrite — leave empty string if their sentence was already fine), "
-    "\"options\": [] (ALWAYS leave this empty array — you never emit topic chips; only the server does, once per session)"
-    "}. No markdown. Never assume the learner's goal — always engage with whatever topic they bring up. For greetings with extra content (e.g. 'hello good morning'), reply naturally and conversationally — DO NOT present a topic menu."
+    " Return ONLY valid JSON with this EXACT shape: {"
+    "\"reply\": str (a warm, natural 1-2 line reply that flows the conversation forward and ALWAYS ends with a short follow-up question), "
+    "\"correction\": null OR {"
+    "\"original\": str (the exact phrase or sentence the learner wrote that needs fixing), "
+    "\"corrected\": str (the same sentence with grammar + punctuation fixed, minimal changes), "
+    "\"explanation\": str (ONE short sentence in VERY simple A2-level English explaining why — e.g. 'We use \"have\" with I, not \"has\".'), "
+    "\"better\": str (a short, powerful, natural-sounding alternative that a native speaker would actually say — daily spoken English, no big words, copy-friendly)"
+    "}, "
+    "\"options\": [] (always empty — only the server emits topic chips)"
+    "}. "
+    "IMPORTANT coaching rules: "
+    "(1) Set `correction` to null when the learner's sentence is already correct — never invent mistakes. "
+    "(2) When there IS a mistake, keep the conversational `reply` natural FIRST — don't interrupt the flow. The correction object sits alongside the reply; the UI renders it as a side panel. "
+    "(3) NEVER mix the correction into the `reply` text itself. "
+    "(4) Fix grammar AND punctuation in `corrected`. Keep explanation beginner-friendly. "
+    "No markdown, no extra keys. Never assume the learner's goal — engage with whatever topic they bring up."
 )
 
 
@@ -400,19 +412,18 @@ async def conversation(body: ConversationRequest, request: Request,
     is_first_real_turn = not any(h.get("role") == "user" for h in history)
     if scenario == "general" and is_first_real_turn and _is_short_greeting(body.message):
         reply = DEFAULT_TOPIC_GREETING
-        corrections, suggestion = [], ""
         options = list(DEFAULT_TOPIC_OPTIONS)
         now = datetime.now(timezone.utc).isoformat()
         await db.conversations.insert_many([
             {"user_id": user.user_id, "session_id": body.session_id,
              "role": "user", "content": body.message, "created_at": now},
             {"user_id": user.user_id, "session_id": body.session_id,
-             "role": "assistant", "content": reply, "corrections": corrections,
-             "suggestion": suggestion, "options": options, "created_at": now},
+             "role": "assistant", "content": reply, "correction": None,
+             "options": options, "created_at": now},
         ])
         await update_streak_and_xp(user.user_id, 5)
         await increment_challenge_metric(user.user_id, "conversation_messages", 1)
-        return {"reply": reply, "corrections": corrections, "suggestion": suggestion, "options": options}
+        return {"reply": reply, "correction": None, "options": options, "encouragement": ""}
 
     # ---- Deterministic topic opener (Rule 2) ----
     is_topic_pick = (
@@ -422,18 +433,17 @@ async def conversation(body: ConversationRequest, request: Request,
     )
     if is_topic_pick:
         reply = TOPIC_OPENERS[body.message.strip().lower()]
-        corrections, suggestion, options = [], "", []
         now = datetime.now(timezone.utc).isoformat()
         await db.conversations.insert_many([
             {"user_id": user.user_id, "session_id": body.session_id,
              "role": "user", "content": body.message, "created_at": now},
             {"user_id": user.user_id, "session_id": body.session_id,
-             "role": "assistant", "content": reply, "corrections": corrections,
-             "suggestion": suggestion, "options": options, "created_at": now},
+             "role": "assistant", "content": reply, "correction": None,
+             "options": [], "created_at": now},
         ])
         await update_streak_and_xp(user.user_id, 5)
         await increment_challenge_metric(user.user_id, "conversation_messages", 1)
-        return {"reply": reply, "corrections": corrections, "suggestion": suggestion, "options": options}
+        return {"reply": reply, "correction": None, "options": [], "encouragement": "Great job! Keep practicing 🔥"}
 
     # ---- Regular LLM-driven turn ----
     system_msg = build_system_for_user(user, scenario)
@@ -464,25 +474,50 @@ async def conversation(body: ConversationRequest, request: Request,
             {"user_id": user.user_id, "session_id": body.session_id,
              "role": "user", "content": body.message, "created_at": now},
             {"user_id": user.user_id, "session_id": body.session_id,
-             "role": "assistant", "content": reply, "corrections": [],
-             "suggestion": "", "options": [], "created_at": now},
+             "role": "assistant", "content": reply, "correction": None,
+             "options": [], "created_at": now},
         ])
         await update_streak_and_xp(user.user_id, 5)
         await increment_challenge_metric(user.user_id, "conversation_messages", 1)
-        return {"reply": reply, "corrections": [], "suggestion": "", "options": []}
+        return {"reply": reply, "correction": None, "options": [], "encouragement": ""}
 
     # Parse structured JSON response (with graceful fallback to plain text)
     reply = str(raw or "").strip()
-    corrections = []
-    suggestion = ""
+    correction = None
     options = []
     try:
         data = _parse_json(raw)
         reply = (data.get("reply") or "").strip() or reply
-        raw_corrections = data.get("corrections") or []
-        if isinstance(raw_corrections, list):
-            corrections = raw_corrections
-        suggestion = str(data.get("suggestion") or "").strip()
+        raw_correction = data.get("correction")
+        if isinstance(raw_correction, dict):
+            original = str(raw_correction.get("original") or "").strip()
+            corrected = str(raw_correction.get("corrected") or "").strip()
+            explanation = str(raw_correction.get("explanation") or "").strip()
+            better = str(raw_correction.get("better") or "").strip()
+            # Only emit a correction when we actually have the minimum required
+            # pieces — avoids showing an empty panel in the UI.
+            if original and corrected and corrected != original:
+                correction = {
+                    "original": original,
+                    "corrected": corrected,
+                    "explanation": explanation,
+                    "better": better,
+                }
+        # Back-compat: if the model emits the OLD shape ({corrections:[], suggestion:""}),
+        # synthesize a single correction object from it so the UI stays consistent.
+        if correction is None:
+            legacy = (data.get("corrections") or []) if isinstance(data, dict) else []
+            if isinstance(legacy, list) and legacy:
+                first = legacy[0] or {}
+                orig = str(first.get("original") or "").strip()
+                corr = str(first.get("correction") or first.get("corrected") or "").strip()
+                if orig and corr and corr != orig:
+                    correction = {
+                        "original": orig,
+                        "corrected": corr,
+                        "explanation": str(first.get("note") or "").strip(),
+                        "better": str(data.get("suggestion") or "").strip(),
+                    }
         raw_options = data.get("options") or []
         if isinstance(raw_options, list):
             options = [str(o).strip() for o in raw_options if str(o).strip()][:4]
@@ -497,20 +532,36 @@ async def conversation(body: ConversationRequest, request: Request,
         logger.warning("[/conversation] empty reply — returning fallback user=%s", user.user_id)
         reply = FALLBACK_REPLY
 
+    # Streak motivation / encouragement — count the user's turns so far
+    # (pre-insert, so this is the total BEFORE the current turn is persisted).
+    prior_user_turns = sum(1 for h in history if h.get("role") == "user")
+    current_user_turn = prior_user_turns + 1
+    if current_user_turn >= 3:
+        encouragement = "You're improving fast 🚀"
+    elif current_user_turn >= 1:
+        encouragement = "Great job! Keep practicing 🔥"
+    else:
+        encouragement = ""
+
     now = datetime.now(timezone.utc).isoformat()
     await db.conversations.insert_many([
         {"user_id": user.user_id, "session_id": body.session_id,
          "role": "user", "content": body.message, "created_at": now},
         {"user_id": user.user_id, "session_id": body.session_id,
-         "role": "assistant", "content": reply, "corrections": corrections,
-         "suggestion": suggestion, "options": options, "created_at": now},
+         "role": "assistant", "content": reply, "correction": correction,
+         "options": options, "created_at": now},
     ])
     await update_streak_and_xp(user.user_id, 5)
     await increment_challenge_metric(user.user_id, "conversation_messages", 1)
-    resp_payload = {"reply": reply, "corrections": corrections, "suggestion": suggestion, "options": options}
+    resp_payload = {
+        "reply": reply,
+        "correction": correction,
+        "options": options,
+        "encouragement": encouragement,
+    }
     logger.info(
-        "[/conversation] returning user=%s reply_len=%d options=%d corrections=%d",
-        user.user_id, len(reply), len(options), len(corrections),
+        "[/conversation] returning user=%s reply_len=%d options=%d has_correction=%s turn=%d",
+        user.user_id, len(reply), len(options), correction is not None, current_user_turn,
     )
     return resp_payload
 
