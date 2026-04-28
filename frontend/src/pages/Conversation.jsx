@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { PaperPlaneRight, SpeakerHigh, ChatsCircle, Sparkle, Microphone, Stop } from "@phosphor-icons/react";
 
@@ -40,10 +41,18 @@ export default function Conversation() {
       const { data } = await api.post("/conversation", { session_id: sessionId, message: text, scenario });
       setMessages((m) => [...m, { role: "assistant", content: data.reply, corrections: data.corrections || [], suggestion: data.suggestion || "", options: data.options || [] }]);
     } catch (e) {
-      console.error("[/conversation] request failed:", e?.response?.status, e?.response?.data || e?.message);
-      // 402 = free-tier limit / premium-required — the axios interceptor already
-      // fires the premium-required event; don't also push a confusing fallback.
-      if (e?.response?.status === 402) return;
+      const status = e?.response?.status;
+      console.error("[/conversation] request failed:", status, e?.response?.data || e?.message);
+      // Distinct handling for 402 free-tier limit — show a friendly limit
+      // message in the chat. The axios interceptor also fires the upgrade modal.
+      if (status === 402) {
+        setMessages((m) => [...m, {
+          role: "assistant",
+          content: "You're doing great! 🎉 Free limit reached. Please try again later or upgrade.",
+          limitReached: true,
+        }]);
+        return;
+      }
       setMessages((m) => [...m, { role: "assistant", content: "Sorry, something went wrong. Let's continue 😊" }]);
     } finally {
       setLoading(false);
@@ -139,12 +148,26 @@ export default function Conversation() {
             <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
               <div className={`flex max-w-[88%] flex-col gap-2 ${m.role === "user" ? "items-end" : "items-start"}`}>
                 <div
+                  data-testid={m.limitReached ? `limit-reached-${i}` : undefined}
                   className={`relative rounded-2xl p-3 ${
-                    m.role === "user" ? "rounded-tr-md bg-gradient-to-br from-blue-500 to-violet-500 text-white" : "rounded-tl-md border-2 border-slate-100 bg-slate-50 text-slate-800"
+                    m.role === "user"
+                      ? "rounded-tr-md bg-gradient-to-br from-blue-500 to-violet-500 text-white"
+                      : m.limitReached
+                      ? "rounded-tl-md border-2 border-amber-200 bg-amber-50 text-amber-900"
+                      : "rounded-tl-md border-2 border-slate-100 bg-slate-50 text-slate-800"
                   }`}
                 >
                   <div className="whitespace-pre-wrap font-medium">{m.content}</div>
-                  {m.role === "assistant" && (
+                  {m.role === "assistant" && m.limitReached && (
+                    <Link
+                      to="/premium"
+                      data-testid={`limit-reached-upgrade-${i}`}
+                      className="mt-2 inline-flex items-center gap-1 rounded-full border-b-2 border-amber-700 bg-gradient-to-r from-amber-400 to-orange-500 px-3 py-1 text-xs font-extrabold text-white"
+                    >
+                      Upgrade now
+                    </Link>
+                  )}
+                  {m.role === "assistant" && !m.limitReached && (
                     <button
                       onClick={() => speak(m.content)}
                       data-testid={`speak-message-${i}`}

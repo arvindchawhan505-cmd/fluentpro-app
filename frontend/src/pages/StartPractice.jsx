@@ -93,13 +93,14 @@ export default function StartPractice() {
         setTimeout(() => setStep(2), 800);
       }
     } catch (e) {
-      console.error("[/conversation] StartPractice request failed:", e?.response?.status, e?.response?.data || e?.message);
-      if (e?.response?.status === 402) {
-        // Premium gate — stay on step so user can see the upgrade modal, but
-        // still allow them to progress the onboarding.
-        setChatReply("Let's keep going 😊");
+      const status = e?.response?.status;
+      console.error("[/conversation] StartPractice request failed:", status, e?.response?.data || e?.message);
+      if (status === 402) {
+        // Free-tier limit hit during onboarding — show the friendly limit
+        // message and still let the user advance so they can finish Day-1.
+        setChatReply("You're doing great! 🎉 Free limit reached. Please try again later or upgrade.");
         setChatOptions([]);
-        setTimeout(() => setStep(2), 1200);
+        setTimeout(() => setStep(2), 1400);
         return;
       }
       setChatReply("Sorry, something went wrong. Let's continue 😊");
