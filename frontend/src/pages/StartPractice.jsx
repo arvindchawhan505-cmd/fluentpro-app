@@ -27,25 +27,35 @@ export default function StartPractice() {
   const [step, setStep] = useState(1);
   const [chatInput, setChatInput] = useState("");
   const [chatReply, setChatReply] = useState(null);
+  const [chatOptions, setChatOptions] = useState([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [grammarResult, setGrammarResult] = useState(null);
   const [grammarLoading, setGrammarLoading] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
-  const sendChat = async () => {
-    if (!chatInput.trim() || chatLoading) return;
+  const sendChat = async (textOverride) => {
+    const text = (textOverride ?? chatInput).trim();
+    if (!text || chatLoading) return;
+    setChatInput("");
     setChatLoading(true);
     try {
       const { data } = await api.post("/conversation", {
         session_id: "day1_practice",
-        message: chatInput.trim(),
+        message: text,
         scenario: "general",
       });
       setChatReply(data.reply);
-      setTimeout(() => setStep(2), 800);
+      const opts = Array.isArray(data.options) ? data.options : [];
+      setChatOptions(opts);
+      // If Coach Ada asked for a topic (returned options), stay on Step 1 so the
+      // learner can pick one. Only advance once they've chosen a real topic.
+      if (opts.length === 0) {
+        setTimeout(() => setStep(2), 800);
+      }
     } catch {
       // fail-friendly: still allow progressing
       setChatReply("Nice to meet you! Let's keep going.");
+      setChatOptions([]);
       setTimeout(() => setStep(2), 800);
     } finally {
       setChatLoading(false);
@@ -128,6 +138,23 @@ export default function StartPractice() {
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 max-w-[88%] rounded-2xl rounded-tl-md border-2 border-slate-100 bg-slate-50 p-3 text-slate-800">
                 {chatReply}
               </motion.div>
+            )}
+
+            {chatOptions.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2" data-testid="practice-chat-options">
+                {chatOptions.map((opt, oi) => (
+                  <button
+                    key={oi}
+                    type="button"
+                    onClick={() => sendChat(opt)}
+                    disabled={chatLoading}
+                    data-testid={`practice-chat-option-${oi}`}
+                    className="rounded-full border-2 border-indigo-200 bg-white px-4 py-2 text-sm font-bold text-indigo-700 transition hover:border-indigo-400 hover:bg-indigo-50 disabled:opacity-50"
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
             )}
 
             <form onSubmit={(e) => { e.preventDefault(); sendChat(); }} className="mt-5 flex gap-2">

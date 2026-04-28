@@ -324,7 +324,8 @@ SCENARIO_PROMPTS = {
 CHAT_JSON_INSTRUCTIONS = (
     " Return ONLY valid JSON: {\"reply\": str (1-3 sentences, end with a follow-up question when natural), "
     "\"corrections\": [{\"original\": str, \"correction\": str, \"note\": str}] (only if learner had grammar errors; otherwise []), "
-    "\"suggestion\": str (an optional ONE-sentence 'better way to say it' rewrite of the learner's last message — leave empty string if their sentence was already great)}. No markdown."
+    "\"suggestion\": str (an optional ONE-sentence 'better way to say it' rewrite of the learner's last message — leave empty string if their sentence was already great), "
+    "\"options\": [str] (EXACTLY 3 or 4 short topic suggestions, 2-4 words each, ONLY when the learner's message is a bare greeting / one word / under ~5 words with no topic — e.g. 'hi', 'hello', 'hey there'. In that case: DO NOT assume a topic. Keep `reply` to ONE friendly sentence asking what they'd like to talk about, then the `options` array lists the choices. For any normal message with real content, leave `options` as []. Tailor options to the learner's goal/level when possible)}. No markdown."
 )
 
 
@@ -368,11 +369,15 @@ async def conversation(body: ConversationRequest, request: Request,
     reply = raw
     corrections = []
     suggestion = ""
+    options = []
     try:
         data = _parse_json(raw)
         reply = data.get("reply") or raw
         corrections = data.get("corrections") or []
         suggestion = data.get("suggestion") or ""
+        raw_options = data.get("options") or []
+        if isinstance(raw_options, list):
+            options = [str(o).strip() for o in raw_options if str(o).strip()][:4]
     except Exception:
         pass
 
@@ -381,11 +386,12 @@ async def conversation(body: ConversationRequest, request: Request,
         {"user_id": user.user_id, "session_id": body.session_id,
          "role": "user", "content": body.message, "created_at": now},
         {"user_id": user.user_id, "session_id": body.session_id,
-         "role": "assistant", "content": reply, "corrections": corrections, "suggestion": suggestion, "created_at": now},
+         "role": "assistant", "content": reply, "corrections": corrections,
+         "suggestion": suggestion, "options": options, "created_at": now},
     ])
     await update_streak_and_xp(user.user_id, 5)
     await increment_challenge_metric(user.user_id, "conversation_messages", 1)
-    return {"reply": reply, "corrections": corrections, "suggestion": suggestion}
+    return {"reply": reply, "corrections": corrections, "suggestion": suggestion, "options": options}
 
 
 @api_router.get("/conversation/history/{session_id}")

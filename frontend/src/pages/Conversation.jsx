@@ -24,15 +24,15 @@ export default function Conversation() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
-  const send = async () => {
-    const text = input.trim();
+  const send = async (textOverride) => {
+    const text = (textOverride ?? input).trim();
     if (!text || loading) return;
     setInput("");
     setMessages((m) => [...m, { role: "user", content: text }]);
     setLoading(true);
     try {
       const { data } = await api.post("/conversation", { session_id: sessionId, message: text, scenario });
-      setMessages((m) => [...m, { role: "assistant", content: data.reply, corrections: data.corrections || [], suggestion: data.suggestion || "" }]);
+      setMessages((m) => [...m, { role: "assistant", content: data.reply, corrections: data.corrections || [], suggestion: data.suggestion || "", options: data.options || [] }]);
     } catch (e) {
       setMessages((m) => [...m, { role: "assistant", content: "⚠️ Sorry, I couldn't respond. Please try again." }]);
     } finally {
@@ -127,6 +127,22 @@ export default function Conversation() {
                       <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-700">Better way to say it</div>
                       <div className="mt-0.5 font-medium text-indigo-900">{m.suggestion}</div>
                     </div>
+                  </div>
+                )}
+
+                {m.role === "assistant" && m.options?.length > 0 && (
+                  <div className="flex flex-wrap gap-2 pt-1" data-testid={`conversation-options-${i}`}>
+                    {m.options.map((opt, oi) => (
+                      <button
+                        key={oi}
+                        onClick={() => send(opt)}
+                        disabled={loading}
+                        data-testid={`conversation-option-${i}-${oi}`}
+                        className="rounded-full border-2 border-indigo-200 bg-white px-3 py-1.5 text-xs font-bold text-indigo-700 transition hover:border-indigo-400 hover:bg-indigo-50 disabled:opacity-50"
+                      >
+                        {opt}
+                      </button>
+                    ))}
                   </div>
                 )}
               </div>
