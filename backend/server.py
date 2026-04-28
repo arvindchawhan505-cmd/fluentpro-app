@@ -1433,21 +1433,25 @@ async def streak_saver_state(request: Request,
 async def streak_saver_claim(request: Request,
                              session_token: Optional[str] = Cookie(None),
                              authorization: Optional[str] = Header(None)):
-    """Records that the user used the saver nudge today (analytics + idempotency).
-    The actual streak extension comes from them completing a real activity —
-    this endpoint just marks the nudge as acted upon so we don't re-show it."""
+    """Records that the user acted on the saver nudge today and awards +5 XP.
+    Gated: user must actually be eligible (streak>=2, tasks_done==0, not already
+    claimed today) — otherwise 400."""
     user = await get_current_user(request, session_token, authorization)
     today = date.today().isoformat()
+    dp = await _daily_path_state(user.user_id, user.goal)
     existing = await db.streak_saves.find_one({"user_id": user.user_id, "date": today})
     if existing:
-        return {"already_claimed": True}
+        return {"already_claimed": True, "xp_awarded": 0}
+    if (user.streak or 0) < 2 or dp["tasks_done"] > 0:
+        raise HTTPException(status_code=400, detail="Not eligible for streak saver")
     await db.streak_saves.insert_one({
         "user_id": user.user_id,
         "date": today,
         "claimed": True,
         "claimed_at": datetime.now(timezone.utc).isoformat(),
     })
-    return {"already_claimed": False}
+    await update_streak_and_xp(user.user_id, 5)
+    return {"already_claimed": False, "xp_awarded": 5}
 
 
 # ---------- Streak Milestones (day 3/7/14/30/60/100 celebrations) ----------
@@ -1472,11 +1476,12 @@ async def streak_milestone(request: Request,
     streak = user.streak or 0
     claimed = await db.streak_milestones.find({"user_id": user.user_id}, {"_id": 0, "days": 1}).to_list(100)
     claimed_days = {int(c.get("days") or 0) for c in claimed}
-    # Highest unclaimed milestone the user has already reached
-    pending = None
-    for m in STREAK_MILESTONES:
-        if streak >= m["days"] and m["days"] not in claimed_days:
-            pending = m
+    # Pick the LOWEST unclaimed tier the user has already reached, so they
+    # celebrate 3 → 7 → 14 in order instead of skipping straight to the highest.
+    pending = next(
+        (m for m in STREAK_MILESTONES if streak >= m["days"] and m["days"] not in claimed_days),
+        None,
+    )
     return {
         "streak": streak,
         "pending": pending,

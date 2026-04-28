@@ -172,8 +172,7 @@
 - Backend: `POST /api/onboarding/day1/complete` — idempotent, awards 10 XP via `update_streak_and_xp`, flips `has_completed_day1=true`.
 - AppShell sidebar relabelled (Today / Lessons / Speak with AI / Learn Words / Pronunciation / Improve Writing / Fix My English) and a critical undefined-`nav` bug fixed.
 
-### Daily Learning Path & Continue Learning (added 2026-04-27)
-- New `<DailyPathCard>` on the returning-user dashboard: 3 micro-tasks for today driven by the user's `goal` (4 templates: job_interview / travel / ielts / casual). Animated SVG ring shows `tasks_done/total`, each task tile has a per-task progress bar + "Start →" link.
+### Daily Learning Path & Continue Learning (added 2026-04-27)- New `<DailyPathCard>` on the returning-user dashboard: 3 micro-tasks for today driven by the user's `goal` (4 templates: job_interview / travel / ielts / casual). Animated SVG ring shows `tasks_done/total`, each task tile has a per-task progress bar + "Start →" link.
 - Bonus +30 XP claim once all 3 tasks are done (idempotent, gated server-side).
 - New `<ContinueLearningBanner>` mounted globally via `<PracticeNextStep>` on practice pages only — pulls from `/daily-path` and surfaces the next non-current task with a "Continue →" CTA so users flow from one activity to the next without bouncing back to the dashboard.
 - Backend: `GET /api/daily-path` (snapshots a baseline of `user_metrics` on the first call of the day so progress only counts today's activity), `POST /api/daily-path/claim`. New collection `db.daily_paths` keyed by `(user_id, date)`.
@@ -182,7 +181,25 @@
 ### Test results
 - Backend iter-8: 19/19 ✅ (test_daily_path_and_onboarding.py — covers day1 idempotency, daily-path templates per goal, baseline stability, activity-driven progress, claim 400/200/idempotent, and regression on /auth/me /progress /lessons /checkin /challenge /onboarding/quest /referral /vocabulary /pronunciation)
 - Frontend iter-8: 100% — DailyPathCard renders 3-tile layout for returning users, ContinueLearningBanner appears on /conversation but not /dashboard or /start-practice, sidebar labels match spec, /start-practice 3-step flow + success modal verified.
-- **Total: 117/117 backend tests passing across 8 iterations**
+- Backend iter-9: 24/24 ✅ (test_retention.py — saver eligibility matrix, claim idempotency + XP award, milestone pending/next logic across all 6 tiers, regression + manifest shape)
+- Frontend iter-9: 100% — StreakMilestoneModal + StreakSaverBanner mount without errors, code-split routes render via PageSkeleton, Dashboard skeleton appears while loading, ErrorBoundary wraps tree.
+- **Total: 141/141 backend tests passing across 9 iterations**
+
+### Option D — Retention + Performance + Polish pack (added 2026-04-27)
+**Retention**
+- **Smart Streak Saver**: floating banner at 9pm local time when streak ≥ 2 AND today's Daily Path is 0/3. One-tap rescue links to /conversation; POST /api/streak/saver/claim awards +5 XP (gated, idempotent). Collection `db.streak_saves` unique on (user_id, date).
+- **Streak Milestones**: celebration modal fires at streak 3 / 7 / 14 / 30 / 60 / 100 days. Rewards 25/75/150/300/600/1000 XP + a badge. `pending` picks LOWEST unclaimed tier so users don't skip celebrations when streak jumps. Modal z-index raised above UpgradeNudgeModal; nudge auto-defers while a milestone is pending. Collection `db.streak_milestones` unique on (user_id, days).
+
+**Performance**
+- **React.lazy + Suspense**: 10 heavy routes (Conversation/Grammar/Vocabulary/Pronunciation/Writing/Lessons/LessonDetail/Profile/Premium/StartPractice) code-split behind `<PageSkeleton>` fallback. Landing + Dashboard stay eager for fastest first paint.
+- **Mongo indexes**: new compound index on `conversations.(user_id, session_id, created_at)` so history queries (up to 50 docs per `/api/conversation` call) no longer full-scan. Unique indexes on `streak_saves.(user_id, date)` and `streak_milestones.(user_id, days)` enforce idempotency at DB layer.
+
+**Polish**
+- **Global `<ErrorBoundary>`** wraps the entire tree — replaces white-screen crashes with a friendly retry card that shows collapsible technical details.
+- **Dashboard skeleton**: `<div data-testid="dashboard-skeleton">` with pulsing placeholders renders while `/api/progress` + `/api/lessons` load.
+- **PWA manifest** upgraded to production-quality: proper name/icons/shortcuts, standalone display, theme color, 2 shortcuts (Today's Practice, Speak with AI). Apple-mobile-web-app meta tags added to index.html — app is now Add-to-Home-Screen installable.
+
+### Previous test results
 
 ## P2
 - [ ] Leaderboard

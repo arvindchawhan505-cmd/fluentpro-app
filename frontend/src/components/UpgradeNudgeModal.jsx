@@ -23,14 +23,16 @@ export default function UpgradeNudgeModal() {
     if (localStorage.getItem(DISMISS_KEY) === todayStr()) return;
     (async () => {
       try {
-        const [{ data: quest }, dpRes] = await Promise.all([
+        // Defer to the more important streak-milestone celebration if one is
+        // pending — don't stack modals on dashboard load.
+        const [{ data: quest }, dpRes, msRes] = await Promise.all([
           api.get("/onboarding/quest"),
           api.get("/daily-path").catch(() => ({ data: null })),
+          api.get("/streak/milestone").catch(() => ({ data: null })),
         ]);
+        if (msRes?.data?.pending) return;
         const eligible = (quest.days_since_signup ?? 0) >= 3 || quest.claimed === true;
         if (!eligible) return;
-        // Don't compete with the Daily Path card — wait until the user has either
-        // completed today's path or it's already been claimed before nudging.
         const dp = dpRes?.data;
         if (dp && !dp.claimed && !dp.completed) return;
         setTimeout(() => setOpen(true), 2500);
