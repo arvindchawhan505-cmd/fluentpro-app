@@ -16,7 +16,10 @@ from typing import List, Optional
 from datetime import datetime, timezone, timedelta, date
 
 from emergentintegrations.llm.chat import LlmChat, UserMessage
-from emergentintegrations.llm.openai import OpenAISpeechToText, OpenAITextToSpeech
+from emergentintegrations.llm.openai import (
+    OpenAISpeechToText as EmergentSpeechToText,
+    OpenAITextToSpeech as EmergentTextToSpeech,
+)
 
 
 ROOT_DIR = Path(__file__).parent
@@ -306,11 +309,12 @@ async def logout(response: Response, session_token: Optional[str] = Cookie(None)
 
 
 def build_chat(session_id: str, system_message: str) -> LlmChat:
+    # All chat responses go through the Emergent universal LLM (default model).
     return LlmChat(
         api_key=EMERGENT_LLM_KEY,
         session_id=session_id,
         system_message=system_message,
-    ).with_model("openai", "gpt-5.2")
+    )
 
 
 SCENARIO_PROMPTS = {
@@ -651,7 +655,7 @@ async def pronunciation_check(
     bio = io.BytesIO(audio_bytes)
     bio.name = filename
 
-    stt = OpenAISpeechToText(api_key=EMERGENT_LLM_KEY)
+    stt = EmergentSpeechToText(api_key=EMERGENT_LLM_KEY)
     try:
         stt_resp = await stt.transcribe(file=bio, model="whisper-1", response_format="json", language="en")
         transcription = stt_resp.text if hasattr(stt_resp, "text") else str(stt_resp)
@@ -683,7 +687,7 @@ async def tts(body: TTSRequest, request: Request,
               session_token: Optional[str] = Cookie(None),
               authorization: Optional[str] = Header(None)):
     await get_current_user(request, session_token, authorization)
-    tts_client = OpenAITextToSpeech(api_key=EMERGENT_LLM_KEY)
+    tts_client = EmergentTextToSpeech(api_key=EMERGENT_LLM_KEY)
     try:
         audio_bytes = await tts_client.generate_speech(
             text=body.text[:4000],
