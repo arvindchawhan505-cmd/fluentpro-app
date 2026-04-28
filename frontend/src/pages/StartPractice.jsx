@@ -29,6 +29,7 @@ export default function StartPractice() {
   const [chatReply, setChatReply] = useState(null);
   const [chatOptions, setChatOptions] = useState([]);
   const [chatLoading, setChatLoading] = useState(false);
+  const [userTurnCount, setUserTurnCount] = useState(0);
   const [grammarResult, setGrammarResult] = useState(null);
   const [grammarLoading, setGrammarLoading] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -38,6 +39,8 @@ export default function StartPractice() {
     if (!text || chatLoading) return;
     setChatInput("");
     setChatLoading(true);
+    const nextTurnCount = userTurnCount + 1;
+    setUserTurnCount(nextTurnCount);
     try {
       const { data } = await api.post("/conversation", {
         session_id: "day1_practice",
@@ -47,13 +50,13 @@ export default function StartPractice() {
       setChatReply(data.reply);
       const opts = Array.isArray(data.options) ? data.options : [];
       setChatOptions(opts);
-      // If Coach Ada asked for a topic (returned options), stay on Step 1 so the
-      // learner can pick one. Only advance once they've chosen a real topic.
-      if (opts.length === 0) {
+      // Advance only after the learner has had a real conversational exchange
+      // (i.e. at least 2 user turns — first = greeting/topic-pick, second = real answer)
+      // AND Coach Ada isn't still presenting the topic menu.
+      if (opts.length === 0 && nextTurnCount >= 2) {
         setTimeout(() => setStep(2), 800);
       }
     } catch {
-      // fail-friendly: still allow progressing
       setChatReply("Nice to meet you! Let's keep going.");
       setChatOptions([]);
       setTimeout(() => setStep(2), 800);

@@ -314,29 +314,60 @@ def build_chat(session_id: str, system_message: str) -> LlmChat:
 
 
 SCENARIO_PROMPTS = {
-    "general": "You are Coach Ada, a warm and encouraging English tutor. Have natural conversations.",
-    "restaurant": "You are a waiter at a cozy cafe. Role-play in English.",
-    "job_interview": "You are a friendly hiring manager doing a mock interview. One question at a time.",
-    "travel": "You are a helpful travel agent. Role-play a booking conversation.",
-    "small_talk": "You are a friendly neighbor making small talk. Casual.",
+    "general": (
+        "You are Coach Ada, a friendly English-speaking coach. "
+        "Personality: friendly, supportive, simple teacher. Use easy, beginner-friendly English. "
+        "Keep replies short (2-3 lines max). Be encouraging, never robotic. Never overwhelm the user."
+    ),
+    "restaurant": "You are a waiter at a cozy cafe. Role-play in English. Keep replies short and friendly.",
+    "job_interview": "You are a friendly hiring manager doing a mock interview. One question at a time. Keep replies short.",
+    "travel": "You are a helpful travel agent. Role-play a booking conversation. Keep replies short.",
+    "small_talk": "You are a friendly neighbor making small talk. Casual and brief.",
+}
+
+# Fixed topic menu shown whenever the learner opens with a bare greeting.
+DEFAULT_TOPIC_OPTIONS = ["Daily conversation", "Job interview", "Travel English", "Free chat"]
+DEFAULT_TOPIC_GREETING = "Hi! 👋 Let's practice English together. What would you like to practice today?"
+
+TOPIC_OPENERS = {
+    "daily conversation": "Great! Tell me about your day 😊",
+    "job interview": "Great! Can you introduce yourself?",
+    "travel english": "Great! Where would you like to travel?",
+    "free chat": "Great! What would you like to talk about?",
 }
 
 CHAT_JSON_INSTRUCTIONS = (
-    " Return ONLY valid JSON: {\"reply\": str (1-3 sentences, end with a follow-up question when natural), "
-    "\"corrections\": [{\"original\": str, \"correction\": str, \"note\": str}] (only if learner had grammar errors; otherwise []), "
-    "\"suggestion\": str (an optional ONE-sentence 'better way to say it' rewrite of the learner's last message — leave empty string if their sentence was already great), "
-    "\"options\": [str] (EXACTLY 3 or 4 short topic suggestions, 2-4 words each, ONLY when the learner's message is a bare greeting / one word / under ~5 words with no topic — e.g. 'hi', 'hello', 'hey there'. In that case: DO NOT assume a topic. Keep `reply` to ONE friendly sentence asking what they'd like to talk about, then the `options` array lists the choices. For any normal message with real content, leave `options` as []. Tailor options to the learner's goal/level when possible)}. No markdown."
+    " Return ONLY valid JSON: {"
+    "\"reply\": str (friendly, 2-3 lines max, easy beginner English, end with a follow-up question when natural), "
+    "\"corrections\": [{\"original\": str, \"correction\": str, \"note\": str}] (ONE short correction only when the learner had a real grammar/word error; otherwise []), "
+    "\"suggestion\": str (optional ONE simple 'better way to say it' rewrite — leave empty string if their sentence was already fine), "
+    "\"options\": [str] (EXACTLY these 4 topic buttons — [\"Daily conversation\", \"Job interview\", \"Travel English\", \"Free chat\"] — ONLY when the learner opens with a bare greeting / one word / under 5 words with no real topic (e.g. 'hi', 'hello', 'hey'). In that case set reply to exactly 'Hi! 👋 Let\\'s practice English together. What would you like to practice today?' and leave corrections/suggestion empty. For every other message leave options as [])"
+    "}. No markdown. Never assume the learner's goal — always let them choose the topic first."
 )
 
 
 def build_system_for_user(user: "User", scenario: str) -> str:
     base = SCENARIO_PROMPTS.get(scenario, SCENARIO_PROMPTS["general"])
-    if scenario == "general" and user.goal and user.goal in GOALS:
-        base = GOALS[user.goal]["tutor_persona"].split(".")[0] + "."
-    if user.goal and user.goal in GOALS:
+    # Rule 5: never assume the user's goal in general chat — always let them pick.
+    # Goal-specific personas are only applied for the explicit role-play scenarios below.
+    if scenario != "general" and user.goal and user.goal in GOALS:
         base += f" Learner's overall goal: {GOALS[user.goal]['label']}."
     base += f" Learner level: {user.level}."
     return base + CHAT_JSON_INSTRUCTIONS
+
+
+GREETING_WORDS = {"hi", "hello", "hey", "hiya", "yo", "sup", "hola", "howdy"}
+
+
+def _is_short_greeting(text: str) -> bool:
+    """Rule 1: detect short greeting-only messages that should trigger the topic menu."""
+    t = (text or "").strip().lower().rstrip("!.?, ")
+    if not t:
+        return True
+    words = t.split()
+    if len(words) <= 2 and any(w.strip(".,!?") in GREETING_WORDS for w in words):
+        return True
+    return False
 
 
 @api_router.post("/conversation")
@@ -346,13 +377,54 @@ async def conversation(body: ConversationRequest, request: Request,
     user = await get_current_user(request, session_token, authorization)
     await check_and_increment_usage(user.user_id, "conversation", is_user_premium(user))
     scenario = body.scenario or "general"
-    system_msg = build_system_for_user(user, scenario)
-    chat = build_chat(f"{user.user_id}_{body.session_id}", system_msg)
 
+    # ---- Deterministic short-greeting handler (Rule 1) ----
     history = await db.conversations.find(
         {"user_id": user.user_id, "session_id": body.session_id},
         {"_id": 0},
     ).sort("created_at", 1).to_list(50)
+
+    is_first_real_turn = not any(h.get("role") == "user" for h in history)
+    if scenario == "general" and is_first_real_turn and _is_short_greeting(body.message):
+        reply = DEFAULT_TOPIC_GREETING
+        corrections, suggestion = [], ""
+        options = list(DEFAULT_TOPIC_OPTIONS)
+        now = datetime.now(timezone.utc).isoformat()
+        await db.conversations.insert_many([
+            {"user_id": user.user_id, "session_id": body.session_id,
+             "role": "user", "content": body.message, "created_at": now},
+            {"user_id": user.user_id, "session_id": body.session_id,
+             "role": "assistant", "content": reply, "corrections": corrections,
+             "suggestion": suggestion, "options": options, "created_at": now},
+        ])
+        await update_streak_and_xp(user.user_id, 5)
+        await increment_challenge_metric(user.user_id, "conversation_messages", 1)
+        return {"reply": reply, "corrections": corrections, "suggestion": suggestion, "options": options}
+
+    # ---- Deterministic topic opener (Rule 2) ----
+    is_topic_pick = (
+        scenario == "general"
+        and len(history) <= 2  # only right after the greeting reply
+        and body.message.strip().lower() in TOPIC_OPENERS
+    )
+    if is_topic_pick:
+        reply = TOPIC_OPENERS[body.message.strip().lower()]
+        corrections, suggestion, options = [], "", []
+        now = datetime.now(timezone.utc).isoformat()
+        await db.conversations.insert_many([
+            {"user_id": user.user_id, "session_id": body.session_id,
+             "role": "user", "content": body.message, "created_at": now},
+            {"user_id": user.user_id, "session_id": body.session_id,
+             "role": "assistant", "content": reply, "corrections": corrections,
+             "suggestion": suggestion, "options": options, "created_at": now},
+        ])
+        await update_streak_and_xp(user.user_id, 5)
+        await increment_challenge_metric(user.user_id, "conversation_messages", 1)
+        return {"reply": reply, "corrections": corrections, "suggestion": suggestion, "options": options}
+
+    # ---- Regular LLM-driven turn ----
+    system_msg = build_system_for_user(user, scenario)
+    chat = build_chat(f"{user.user_id}_{body.session_id}", system_msg)
 
     prior = ""
     if history:
