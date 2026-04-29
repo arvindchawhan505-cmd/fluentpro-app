@@ -1565,6 +1565,129 @@ async def streak_milestone_claim(body: dict, request: Request,
     return {"already_claimed": False, "xp_awarded": milestone["reward_xp"], "badge": milestone["badge"]}
 
 
+# ---------- Daily Mission (unified habit-loop flow) ----------
+MISSION_TASKS = [
+    {"key": "chat", "title": "Chat with Coach Ada", "subtitle": "Send 2 messages", "target": 2, "xp": 5, "icon": "chat"},
+    {"key": "vocab", "title": "Learn 2 words", "subtitle": "Answer 2 questions", "target": 2, "xp": 10, "icon": "vocab"},
+    {"key": "speak", "title": "Speak a sentence", "subtitle": "1 pronunciation drill", "target": 1, "xp": 10, "icon": "speak"},
+    {"key": "write", "title": "Write a sentence", "subtitle": "Get instant feedback", "target": 1, "xp": 15, "icon": "write"},
+]
+MISSION_TASK_KEYS = [t["key"] for t in MISSION_TASKS]
+MISSION_COMPLETION_BONUS = 30
+
+
+async def _mission_doc(user_id: str) -> dict:
+    today = date.today().isoformat()
+    doc = await db.daily_missions.find_one({"user_id": user_id, "date": today}, {"_id": 0})
+    if doc:
+        return doc
+    doc = {
+        "user_id": user_id,
+        "date": today,
+        "task_progress": {t["key"]: 0 for t in MISSION_TASKS},
+        "task_done": {t["key"]: False for t in MISSION_TASKS},
+        "xp_earned": 0,
+        "completed": False,
+        "completed_at": None,
+    }
+    await db.daily_missions.insert_one(doc)
+    return await db.daily_missions.find_one({"user_id": user_id, "date": today}, {"_id": 0})
+
+
+def _mission_summary(doc: dict) -> dict:
+    tasks_done = sum(1 for k in MISSION_TASK_KEYS if doc.get("task_done", {}).get(k))
+    return {
+        "date": doc["date"],
+        "tasks": [
+            {**t, "progress": int(doc.get("task_progress", {}).get(t["key"], 0)),
+             "done": bool(doc.get("task_done", {}).get(t["key"]))}
+            for t in MISSION_TASKS
+        ],
+        "tasks_done": tasks_done,
+        "tasks_total": len(MISSION_TASKS),
+        "xp_earned": int(doc.get("xp_earned", 0)),
+        "completed": bool(doc.get("completed")),
+        "completion_bonus": MISSION_COMPLETION_BONUS,
+        "next_task": next((k for k in MISSION_TASK_KEYS if not doc.get("task_done", {}).get(k)), None),
+    }
+
+
+@api_router.get("/mission/today")
+async def mission_today(request: Request,
+                        session_token: Optional[str] = Cookie(None),
+                        authorization: Optional[str] = Header(None)):
+    user = await get_current_user(request, session_token, authorization)
+    doc = await _mission_doc(user.user_id)
+    return _mission_summary(doc)
+
+
+class MissionTaskBody(BaseModel):
+    task: str  # one of chat/vocab/speak/write
+    increment: int = 1  # how much progress to add this call
+
+
+@api_router.post("/mission/progress")
+async def mission_progress(body: MissionTaskBody, request: Request,
+                           session_token: Optional[str] = Cookie(None),
+                           authorization: Optional[str] = Header(None)):
+    """Increments progress on a mission task. Awards the per-task XP exactly
+    once when the task crosses its target. Idempotent — safe to spam."""
+    user = await get_current_user(request, session_token, authorization)
+    if body.task not in MISSION_TASK_KEYS:
+        raise HTTPException(status_code=400, detail="Unknown task")
+    task_meta = next(t for t in MISSION_TASKS if t["key"] == body.task)
+    today = date.today().isoformat()
+    await _mission_doc(user.user_id)  # ensures doc exists
+    # Atomic increment + read back
+    await db.daily_missions.update_one(
+        {"user_id": user.user_id, "date": today},
+        {"$inc": {f"task_progress.{body.task}": max(1, int(body.increment))}},
+    )
+    doc = await db.daily_missions.find_one({"user_id": user.user_id, "date": today}, {"_id": 0})
+    progress = int(doc.get("task_progress", {}).get(body.task, 0))
+    was_done = bool(doc.get("task_done", {}).get(body.task))
+    just_done = progress >= task_meta["target"] and not was_done
+    xp_awarded = 0
+    if just_done:
+        await db.daily_missions.update_one(
+            {"user_id": user.user_id, "date": today},
+            {"$set": {f"task_done.{body.task}": True}, "$inc": {"xp_earned": task_meta["xp"]}},
+        )
+        await update_streak_and_xp(user.user_id, task_meta["xp"])
+        xp_awarded = task_meta["xp"]
+        doc = await db.daily_missions.find_one({"user_id": user.user_id, "date": today}, {"_id": 0})
+    return {**_mission_summary(doc), "xp_awarded_this_call": xp_awarded, "task_just_completed": just_done}
+
+
+@api_router.post("/mission/complete")
+async def mission_complete(request: Request,
+                           session_token: Optional[str] = Cookie(None),
+                           authorization: Optional[str] = Header(None)):
+    """Finalises the mission once all 4 tasks are done — awards the +30 bonus,
+    flips has_completed_day1=True (if first day), and is idempotent."""
+    user = await get_current_user(request, session_token, authorization)
+    today = date.today().isoformat()
+    doc = await _mission_doc(user.user_id)
+    if doc.get("completed"):
+        return {"already_completed": True, "xp_awarded": 0, **_mission_summary(doc)}
+    if not all(doc.get("task_done", {}).get(k) for k in MISSION_TASK_KEYS):
+        raise HTTPException(status_code=400, detail="Mission tasks not all complete")
+    await db.daily_missions.update_one(
+        {"user_id": user.user_id, "date": today},
+        {"$set": {"completed": True, "completed_at": datetime.now(timezone.utc).isoformat()},
+         "$inc": {"xp_earned": MISSION_COMPLETION_BONUS}},
+    )
+    await update_streak_and_xp(user.user_id, MISSION_COMPLETION_BONUS)
+    # First-time mission completion also satisfies Day-1 onboarding
+    if not user.has_completed_day1:
+        await db.users.update_one(
+            {"user_id": user.user_id},
+            {"$set": {"has_completed_day1": True}},
+        )
+    doc = await db.daily_missions.find_one({"user_id": user.user_id, "date": today}, {"_id": 0})
+    return {"already_completed": False, "xp_awarded": MISSION_COMPLETION_BONUS, **_mission_summary(doc)}
+
+
 # ---------- Referral system ----------
 REFERRER_REWARD = 100  # XP for referrer when invitee redeems
 INVITEE_REWARD = 50    # XP bonus for invitee on signup with code
@@ -1736,6 +1859,7 @@ async def ensure_indexes():
         await db.daily_paths.create_index([("user_id", 1), ("date", 1)], unique=True)
         await db.streak_saves.create_index([("user_id", 1), ("date", 1)], unique=True)
         await db.streak_milestones.create_index([("user_id", 1), ("days", 1)], unique=True)
+        await db.daily_missions.create_index([("user_id", 1), ("date", 1)], unique=True)
         # Perf: conversation history queries sort by (user_id, session_id, created_at)
         await db.conversations.create_index([
             ("user_id", 1), ("session_id", 1), ("created_at", 1),

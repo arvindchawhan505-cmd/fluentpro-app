@@ -28,6 +28,8 @@ const LessonDetail = lazy(() => import("@/pages/LessonDetail"));
 const Profile = lazy(() => import("@/pages/Profile"));
 const Premium = lazy(() => import("@/pages/Premium"));
 const StartPractice = lazy(() => import("@/pages/StartPractice"));
+const Mission = lazy(() => import("@/pages/Mission"));
+const Practice = lazy(() => import("@/pages/Practice"));
 
 function Lazy({ children }) {
   return <Suspense fallback={<PageSkeleton />}>{children}</Suspense>;
@@ -51,14 +53,14 @@ function Protected({ children }) {
 function PremiumGate({ children }) {
   const { user, loading } = useAuth();
   if (loading) return null;
-  if (user && !user.has_completed_day1) return <Navigate to="/start-practice" replace />;
+  if (user && !user.has_completed_day1) return <Navigate to="/mission" replace />;
   return children;
 }
 
 function NewUserGate({ children }) {
   const { user, loading } = useAuth();
   if (loading) return null;
-  if (user && !user.has_completed_day1) return <Navigate to="/start-practice" replace />;
+  if (user && !user.has_completed_day1) return <Navigate to="/mission" replace />;
   return children;
 }
 
@@ -69,6 +71,7 @@ function AppRouter() {
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
+      <Route path="/practice" element={<Protected><Lazy><Practice /></Lazy></Protected>} />
       <Route path="/lessons" element={<Protected><NewUserGate><Lazy><Lessons /></Lazy></NewUserGate></Protected>} />
       <Route path="/lessons/:id" element={<Protected><NewUserGate><Lazy><LessonDetail /></Lazy></NewUserGate></Protected>} />
       <Route path="/conversation" element={<Protected><NewUserGate><Lazy><Conversation /></Lazy></NewUserGate></Protected>} />
@@ -79,6 +82,7 @@ function AppRouter() {
       <Route path="/profile" element={<Protected><Lazy><Profile /></Lazy></Protected>} />
       <Route path="/premium" element={<Protected><PremiumGate><Lazy><Premium /></Lazy></PremiumGate></Protected>} />
       <Route path="/start-practice" element={<ProtectedRoute><Lazy><StartPractice /></Lazy></ProtectedRoute>} />
+      <Route path="/mission" element={<ProtectedRoute><Lazy><Mission /></Lazy></ProtectedRoute>} />
     </Routes>
   );
 }

@@ -2,20 +2,14 @@ import React from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import {
-  GraduationCap, ChatsCircle, BookBookmark, Microphone, PencilSimpleLine,
-  Notebook, User, SignOut, Star, Crown,
+  GraduationCap, ChatsCircle, Compass, User, SignOut, Star, Crown,
 } from "@phosphor-icons/react";
 import Logo from "@/components/Logo";
 import StreakFlame from "@/components/StreakFlame";
 
 const NAV_BASE = [
   { to: "/dashboard", label: "Today", icon: GraduationCap, testId: "nav-dashboard" },
-  { to: "/lessons", label: "Lessons", icon: Notebook, testId: "nav-lessons" },
-  { to: "/conversation", label: "Speak with AI", icon: ChatsCircle, testId: "nav-conversation" },
-  { to: "/vocabulary", label: "Learn Words", icon: BookBookmark, testId: "nav-vocabulary" },
-  { to: "/pronunciation", label: "Pronunciation", icon: Microphone, testId: "nav-pronunciation" },
-  { to: "/writing", label: "Improve Writing", icon: PencilSimpleLine, testId: "nav-writing" },
-  { to: "/grammar", label: "Fix My English", icon: Notebook, testId: "nav-grammar" },
+  { to: "/practice", label: "Practice", icon: Compass, testId: "nav-practice" },
 ];
 const NAV_PREMIUM = { to: "/premium", label: "Premium", icon: Crown, testId: "nav-premium" };
 

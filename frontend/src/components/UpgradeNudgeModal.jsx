@@ -25,13 +25,16 @@ export default function UpgradeNudgeModal() {
     (async () => {
       try {
         // Defer to the more important streak-milestone celebration if one is
-        // pending — don't stack modals on dashboard load.
-        const [{ data: quest }, dpRes, msRes] = await Promise.all([
+        // pending — don't stack modals on dashboard load. Also defer if today's
+        // Mission is not yet complete (we want the user focused on the mission).
+        const [{ data: quest }, dpRes, msRes, missionRes] = await Promise.all([
           api.get("/onboarding/quest"),
           api.get("/daily-path").catch(() => ({ data: null })),
           api.get("/streak/milestone").catch(() => ({ data: null })),
+          api.get("/mission/today").catch(() => ({ data: null })),
         ]);
         if (msRes?.data?.pending) return;
+        if (missionRes?.data && !missionRes.data.completed) return;
         const eligible = (quest.days_since_signup ?? 0) >= 3 || quest.claimed === true;
         if (!eligible) return;
         const dp = dpRes?.data;

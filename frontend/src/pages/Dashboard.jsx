@@ -3,284 +3,106 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
-import {
-  Star, Trophy, ChatsCircle, Microphone, PencilSimpleLine,
-  BookBookmark, Notebook, ArrowRight, ShareNetwork, Crown,
-} from "@phosphor-icons/react";
+import { Trophy, Star, Crown, ArrowRight } from "@phosphor-icons/react";
 import StreakFlame from "@/components/StreakFlame";
-import ShareStreakModal from "@/components/ShareStreakModal";
-import DailyCheckinCard from "@/components/DailyCheckinCard";
-import DailyChallengeCard from "@/components/DailyChallengeCard";
-import OnboardingQuestCard from "@/components/OnboardingQuestCard";
-import ReferralCard from "@/components/ReferralCard";
 import LevelBadge from "@/components/LevelBadge";
-import DailyPathCard from "@/components/DailyPathCard";
+import MissionCard from "@/components/MissionCard";
 
-const quickActions = [
-  { to: "/conversation", title: "Chat with Coach", subtitle: "Practice real conversations", icon: ChatsCircle, color: "from-blue-500 to-violet-500", testId: "quick-conversation" },
-  { to: "/pronunciation", title: "Pronunciation", subtitle: "Record and get scored", icon: Microphone, color: "from-rose-400 to-rose-500", testId: "quick-pronunciation" },
-  { to: "/vocabulary", title: "Vocabulary", subtitle: "5 new words today", icon: BookBookmark, color: "from-amber-400 to-amber-500", testId: "quick-vocabulary" },
-  { to: "/writing", title: "Writing feedback", subtitle: "Get essay scores", icon: PencilSimpleLine, color: "from-green-400 to-green-500", testId: "quick-writing" },
-];
-
+/**
+ * Daily Mission home. Strips the dashboard down to ONE focal hero card
+ * (Today's Mission) plus a compact XP / streak / level strip. Everything
+ * else (challenges, check-ins, referrals, lessons grid) has moved to the
+ * "Practice" section in the sidebar to keep the home screen distraction-free.
+ */
 export default function Dashboard() {
   const { user } = useAuth();
   const [progress, setProgress] = useState(null);
-  const [lessons, setLessons] = useState([]);
-  const [shareOpen, setShareOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const isNewUser = user && !user.has_completed_day1;
 
   useEffect(() => {
-    if (isNewUser) { setLoaded(true); return; }
     (async () => {
       try {
-        const [p, l] = await Promise.all([api.get("/progress"), api.get("/lessons")]);
+        const p = await api.get("/progress");
         setProgress(p.data);
-        setLessons(l.data.lessons);
-      } catch { /* tolerate — show what we have */ }
+      } catch { /* tolerate */ }
       setLoaded(true);
     })();
-  }, [isNewUser]);
-
-  if (isNewUser) {
-    return (
-      <div className="space-y-8 pb-24 md:pb-8" data-testid="dashboard-page">
-        <header data-testid="newuser-greeting">
-          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 md:text-4xl" style={{ fontFamily: "Nunito, sans-serif" }}>
-            Hi, {user?.name?.split(" ")[0]} 👋
-          </h1>
-          <p className="mt-2 max-w-xl text-lg font-medium text-slate-600">
-            Let's improve your English today
-          </p>
-        </header>
-
-        <motion.section
-          initial={{ opacity: 0, y: 12, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }}
-          data-testid="start-practice-card"
-          className="relative overflow-hidden rounded-3xl border-2 border-indigo-200 bg-gradient-to-br from-blue-500 via-indigo-500 to-violet-500 p-8 text-white shadow-2xl shadow-indigo-500/20 md:p-12"
-        >
-          <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/15 blur-3xl" />
-          <div className="pointer-events-none absolute -bottom-20 -left-10 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
-          <div className="relative flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-            <div className="max-w-xl">
-              <div className="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-white">
-                <span className="text-xs font-bold uppercase tracking-widest">Day 1</span>
-              </div>
-              <h2 className="mt-3 text-3xl font-extrabold leading-tight md:text-5xl" style={{ fontFamily: "Nunito, sans-serif" }}>
-                Start Today's Practice 🚀
-              </h2>
-              <p className="mt-3 text-lg font-medium text-white/90">
-                Only 3 minutes. Build your streak.
-              </p>
-              <Link
-                to="/start-practice"
-                data-testid="start-practice-button"
-                className="mt-6 inline-flex items-center gap-2 rounded-2xl border-b-4 border-white/40 bg-white px-6 py-4 text-lg font-extrabold text-indigo-700 transition hover:bg-white/95 active:translate-y-1 active:border-b-0"
-              >
-                Start Now <ArrowRight weight="bold" />
-              </Link>
-            </div>
-            <div className="hidden flex-shrink-0 items-center gap-3 md:flex">
-              <div className="rounded-2xl bg-white/15 p-4 text-center backdrop-blur">
-                <div className="text-xs font-bold uppercase tracking-wider text-white/80">3 quick steps</div>
-                <div className="mt-2 space-y-1.5 text-sm font-bold">
-                  <div className="flex items-center gap-2"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/25 text-xs">1</span> Chat with Coach Ada</div>
-                  <div className="flex items-center gap-2"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/25 text-xs">2</span> Learn 1 word</div>
-                  <div className="flex items-center gap-2"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/25 text-xs">3</span> Fix a sentence</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </motion.section>
-      </div>
-    );
-  }
-
-  const nextLesson = lessons.find((l) => !l.completed && !l.locked) || lessons.find((l) => !l.completed);
+  }, []);
 
   if (!loaded) {
     return (
       <div className="space-y-6 pb-24 md:pb-8" data-testid="dashboard-skeleton">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
-          <div className="md:col-span-8 h-48 animate-pulse rounded-3xl border-2 border-slate-100 bg-slate-50" />
-          <div className="md:col-span-4 grid grid-cols-3 gap-3 md:grid-cols-1">
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="h-14 animate-pulse rounded-2xl border-2 border-slate-100 bg-slate-50" style={{ animationDelay: `${i * 80}ms` }} />
-            ))}
-          </div>
-        </div>
-        <div className="h-40 animate-pulse rounded-3xl border-2 border-slate-100 bg-slate-50" />
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="h-28 animate-pulse rounded-3xl border-2 border-slate-100 bg-slate-50" style={{ animationDelay: `${i * 60}ms` }} />
-          ))}
-        </div>
+        <div className="h-32 w-full animate-pulse rounded-3xl border-2 border-slate-100 bg-slate-50" />
+        <div className="h-64 w-full animate-pulse rounded-3xl border-2 border-slate-100 bg-slate-50" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-8 pb-24 md:pb-8" data-testid="dashboard-page">
-      <motion.section
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="grid grid-cols-1 gap-4 md:grid-cols-12"
-      >
-        <div className="md:col-span-8 rounded-3xl border-2 border-slate-100 bg-gradient-to-br from-blue-50 via-white to-violet-50 p-6 md:p-8">
-          <div className="text-sm font-bold uppercase tracking-wider text-indigo-600">Welcome back</div>
-          <h1 className="mt-1 text-3xl font-extrabold tracking-tight text-slate-900 md:text-4xl" style={{ fontFamily: "Nunito, sans-serif" }}>
-            Hi, {user?.name?.split(" ")[0]} 👋
+    <div className="space-y-6 pb-24 md:pb-8" data-testid="dashboard-page">
+      <header className="flex items-end justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 md:text-4xl" style={{ fontFamily: "Nunito, sans-serif" }}>
+            Hi, {user?.name?.split(" ")[0] || "there"} 👋
           </h1>
-          <p className="mt-2 max-w-xl font-medium text-slate-600">
-            Ready for today's practice? Keep your streak alive — small daily reps build real fluency.
+          <p className="mt-1 text-base font-medium text-slate-600">
+            Let's improve your English today.
           </p>
-          {nextLesson && (
-            <Link
-              to={`/lessons/${nextLesson.id}`}
-              data-testid="continue-next-lesson-button"
-              className="mt-5 inline-flex items-center gap-2 rounded-xl border-b-4 border-indigo-700 bg-gradient-to-r from-blue-500 to-violet-500 px-5 py-3 font-bold text-white transition hover:from-blue-600 hover:to-violet-600 active:translate-y-1 active:border-b-0"
-            >
-              Continue: {nextLesson.title}
-              <ArrowRight weight="bold" />
-            </Link>
-          )}
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              onClick={() => setShareOpen(true)}
-              data-testid="share-streak-button"
-              className="inline-flex items-center gap-2 rounded-xl border-2 border-orange-200 bg-white px-4 py-2 font-bold text-orange-700 hover:border-orange-300"
-            >
-              <ShareNetwork weight="duotone" /> Share my streak
-            </button>
-            {!user?.is_premium && (
-              <Link
-                to="/premium"
-                data-testid="dashboard-go-premium-link"
-                className="inline-flex items-center gap-2 rounded-xl border-2 border-amber-200 bg-amber-50 px-4 py-2 font-bold text-amber-700 hover:border-amber-300"
-              >
-                <Crown weight="fill" /> Go Premium · ₹99/mo
-              </Link>
-            )}
-          </div>
         </div>
+        <div className="hidden items-center gap-2 sm:flex">
+          {progress && <LevelBadge level={progress.level || user?.level || "Beginner"} />}
+        </div>
+      </header>
 
-        <div className="md:col-span-4 grid grid-cols-3 gap-3 md:grid-cols-1">
-          <StreakStat streak={progress?.streak ?? 0} testId="stat-streak" />
-          <Stat icon={Star} label="XP" value={progress?.xp ?? 0} color="text-amber-600 bg-amber-50" testId="stat-xp" />
-          <div className="rounded-2xl border-2 border-slate-100 bg-white p-3" data-testid="stat-level">
-            <LevelBadge levelInfo={progress?.level_info} size="sm" />
-          </div>
-        </div>
-      </motion.section>
+      {/* Compact stats strip */}
+      <motion.div
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+        className="grid grid-cols-3 gap-3"
+      >
+        <Stat label="Streak" value={`${progress?.streak ?? user?.streak ?? 0} days`} icon={<StreakFlame size={22} />} bg="bg-rose-50" />
+        <Stat label="XP" value={progress?.xp ?? user?.xp ?? 0} icon={<Star weight="fill" size={20} className="text-amber-500" />} bg="bg-amber-50" />
+        <Stat label="Lessons" value={`${progress?.completed_lessons ?? 0}/${progress?.total_lessons ?? 0}`} icon={<Trophy weight="fill" size={20} className="text-violet-500" />} bg="bg-violet-50" />
+      </motion.div>
 
-      <DailyPathCard />
-      <OnboardingQuestCard />
-      <DailyChallengeCard />
-      <DailyCheckinCard />
-      <ReferralCard />
+      {/* THE main card — everything else has moved to /practice */}
+      <MissionCard />
 
-      <section>
-        <h2 className="mb-4 text-xl font-bold text-slate-800" style={{ fontFamily: "Nunito, sans-serif" }}>
-          Jump in
-        </h2>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          {quickActions.map(({ to, title, subtitle, icon: Icon, color, testId }) => (
-            <Link
-              key={to}
-              to={to}
-              data-testid={testId}
-              className="group relative overflow-hidden rounded-3xl border-2 border-slate-100 bg-white p-5 transition hover:-translate-y-1 hover:border-sky-200 hover:shadow-md"
-            >
-              <div className={`mb-3 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br ${color} text-white shadow-[inset_0_-3px_0_rgba(0,0,0,0.15)]`}>
-                <Icon weight="duotone" size={22} />
-              </div>
-              <div className="font-extrabold text-slate-900">{title}</div>
-              <div className="text-sm font-medium text-slate-500">{subtitle}</div>
-            </Link>
-          ))}
-        </div>
-      </section>
+      {/* Subtle pointer to Practice tab so power users know other modes exist */}
+      <Link
+        to="/practice"
+        data-testid="practice-tab-link"
+        className="group flex items-center justify-between rounded-2xl border-2 border-slate-100 bg-white p-4 text-sm font-bold text-slate-600 transition hover:border-indigo-200 hover:text-indigo-600"
+      >
+        <span>Want more practice? Explore conversation, lessons, vocabulary…</span>
+        <ArrowRight weight="bold" size={16} className="transition group-hover:translate-x-1" />
+      </Link>
 
-      <section>
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-slate-800" style={{ fontFamily: "Nunito, sans-serif" }}>
-            Your learning path
-          </h2>
-          <Link to="/lessons" className="text-sm font-bold text-indigo-600 hover:underline" data-testid="see-all-lessons-link">
-            See all →
-          </Link>
-        </div>
-        {progress && (
-          <div className="mb-5">
-            <div className="mb-2 flex items-center justify-between text-sm font-bold text-slate-600">
-              <span>{progress.completed}/{progress.total_lessons} lessons</span>
-              <span>{progress.progress_pct}%</span>
-            </div>
-            <div className="h-4 w-full overflow-hidden rounded-full bg-slate-100">
-              <div
-                className="relative h-full rounded-full bg-gradient-to-r from-blue-500 to-violet-500 transition-all after:absolute after:left-1 after:right-1 after:top-1 after:h-1.5 after:rounded-full after:bg-white/30"
-                style={{ width: `${progress.progress_pct}%` }}
-              />
-            </div>
-          </div>
-        )}
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          {lessons.slice(0, 4).map((l) => (
-            <Link
-              key={l.id}
-              to={`/lessons/${l.id}`}
-              data-testid={`lesson-card-${l.id}`}
-              className="group flex items-center justify-between rounded-2xl border-2 border-slate-100 bg-white p-4 transition hover:border-sky-200"
-            >
-              <div className="flex items-center gap-3">
-                <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${l.completed ? "bg-green-100 text-green-600" : l.locked ? "bg-slate-100 text-slate-400" : "bg-gradient-to-br from-blue-100 to-violet-100 text-indigo-600"}`}>
-                  <Notebook weight="duotone" size={22} />
-                </div>
-                <div>
-                  <div className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                    {l.level} {l.locked && "· Premium"}
-                  </div>
-                  <div className="font-extrabold text-slate-900">{l.title}</div>
-                </div>
-              </div>
-              {l.locked ? <Crown weight="fill" className="text-amber-500" /> : <ArrowRight weight="bold" className="text-slate-400 transition group-hover:text-indigo-500" />}
-            </Link>
-          ))}
-        </div>
-      </section>
-      <ShareStreakModal open={shareOpen} onClose={() => setShareOpen(false)} />
+      {/* Premium teaser — only after Day-1 done */}
+      {user?.has_completed_day1 && !user?.is_premium && (
+        <Link
+          to="/premium"
+          data-testid="premium-teaser"
+          className="flex items-center justify-between gap-3 rounded-2xl border-2 border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 p-4 text-sm font-bold text-amber-900 hover:border-amber-300"
+        >
+          <span className="flex items-center gap-2">
+            <Crown weight="fill" size={18} className="text-amber-500" />
+            Upgrade for unlimited practice
+          </span>
+          <ArrowRight weight="bold" size={14} />
+        </Link>
+      )}
     </div>
   );
 }
 
-function Stat({ icon: Icon, label, value, suffix, color, testId }) {
+function Stat({ label, value, icon, bg }) {
   return (
-    <div className={`flex items-center gap-3 rounded-2xl border-2 border-slate-100 bg-white p-4 ${color.includes("bg-") ? "" : ""}`} data-testid={testId}>
-      <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${color}`}>
-        <Icon weight="duotone" size={20} />
+    <div className={`rounded-2xl border border-slate-100 ${bg} p-3`}>
+      <div className="flex items-center gap-2">
+        {icon}
+        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{label}</div>
       </div>
-      <div>
-        <div className="text-xs font-bold uppercase tracking-wider text-slate-400">{label}</div>
-        <div className="text-lg font-extrabold text-slate-900">
-          {value}{suffix ? <span className="ml-1 text-sm font-bold text-slate-500">{suffix}</span> : null}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function StreakStat({ streak, testId }) {
-  const hot = streak >= 7;
-  return (
-    <div className={`relative flex items-center gap-3 overflow-hidden rounded-2xl border-2 p-4 transition ${hot ? "border-orange-200 bg-gradient-to-br from-amber-50 via-white to-rose-50" : "border-slate-100 bg-white"}`} data-testid={testId}>
-      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50 text-orange-600">
-        <StreakFlame streak={streak} size={22} />
-      </div>
-      <div>
-        <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Streak {hot && "· On fire"}</div>
-        <div className="text-lg font-extrabold text-slate-900">{streak}<span className="ml-1 text-sm font-bold text-slate-500">days</span></div>
-      </div>
+      <div className="mt-0.5 text-lg font-extrabold text-slate-900">{value}</div>
     </div>
   );
 }
